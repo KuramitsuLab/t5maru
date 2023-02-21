@@ -1,1 +1,1 @@
-from trainmaru import T5Model
+from trainmaru import T5ModelTrainer

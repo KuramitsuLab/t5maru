@@ -1,30 +1,37 @@
 # import dill as pickle
 # import glob
+from transformers import default_data_collator
+import os
+import urllib.request
 import sys
 import random
 import json
 
 import torch
 from torch.utils.data import DataLoader
-from torch.optim import AdamW
+# from torch.optim import AdamW
 
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
     get_linear_schedule_with_warmup
 )
+from transformers.optimization import Adafactor, AdafactorSchedule, AdamW
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+import datasets
 from datasets import load_dataset
+datasets.utils.logging.set_verbosity_warning()
+
 # https://www.kaggle.com/code/noriyukipy/text-classification-dataloader-from-datasets
-from transformers import default_data_collator
 
 
 def set_seed(seed):  # 乱数シードの設定
+    import numpy as np
     random.seed(seed)
-    # np.random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -50,12 +57,136 @@ def debug_print(*args, **kwargs):
 USE_GPU = torch.cuda.is_available()
 
 
-def find_latest_checkpoints(checkpoint_dir):
-    ckpts = sorted(glob.glob(checkpoint_dir+"/*.ckpt"))
-    if len(ckpts) == 0:
-        return None
-    else:
-        return ckpts[-1]
+def transform_nop(x):
+    return x
+
+
+#
+
+
+def url_is_alive(url: str):
+    request = urllib.request.Request(url)
+    request.get_method = lambda: 'HEAD'
+    try:
+        urllib.request.urlopen(request)
+        return True
+    except urllib.request.HTTPError:
+        return False
+
+
+class T5DataModule(pl.LightningDataModule):
+    def __init__(self, data_source: str,
+                 transform=transform_nop,
+                 split='train', valid_split=None,  # 'validation',
+                 batch_size=32, num_of_workers=0, streaming=False):
+        super().__init__()
+        self.data_source = data_source
+        self.split = split
+        self.valid_split = valid_split
+        self.transform = transform
+        self.streaming = streaming
+        self.batch_size = batch_size
+        self.num_of_workers = num_of_workers
+
+    def file_type(self, data_source):
+        if isinstance(data_source, (list, tuple)):
+            return self.file_type(data_source[0])
+        if isinstance(data_source, dict):
+            return self.file_type(data_source['train'])
+        assert isinstance(data_source, str)
+        if '.json' in data_source:
+            return 'json', {}
+        if '.csv' in data_source:
+            return 'csv', {}
+        if '.tsv' in data_source:
+            return 'csv', dict(delimiter='\t')
+        return 'text', {}
+
+    def valid_files(self, data_source):
+        if isinstance(data_source, (list, tuple)):
+            files = []
+            for file in data_source:
+                files.extend(self.valid_files(file))
+            return self.file_type(data_source[0])
+        assert isinstance(data_source, str)
+        if '_train.' in data_source:
+            file = data_source.replace('_train.', '_valid.')
+            if self.exists(file):
+                return [file]
+        return []
+
+    def load(self, data_source, split='train', transform=transform_nop):
+        if isinstance(data_source, (str, list, tuple, dict)):
+            file_type, kwargs = self.file_type(data_source)
+            ds = load_dataset(file_type,
+                              data_files=data_source, split=split,
+                              streaming=self.streaming, **kwargs)
+            return ds.map(transform).with_format('torch')
+        return data_source.map(transform).with_format('torch')
+
+    def exists(self, file_path):
+        if file_path.startswith('https://') or file_path.startswith('http://'):
+            return url_is_alive(file_path)
+        return os.path.isfile(file_path)
+
+    def dropper(self, data: dict):
+        if 'in' in data:
+            data['in'] = ''.join(c for c in data['in']
+                                 if random.random() > 0.1)
+        return self.transform(data)
+
+    def setup(self, stage: str):
+        # Assign train/val datasets for use in dataloaders
+        if stage == "fit":
+            self.ds_train = self.load(self.data_source,
+                                      split=self.split, transform=self.transform)
+            if self.valid_split:
+                self.ds_valid = self.load(
+                    self.data_source, split=self.valid_split, transform=self.transform)
+                return
+            valid_files = self.valid_files(self.data_source)
+            if len(valid_files) > 0:
+                self.ds_valid = self.load(
+                    valid_files, split='train', transform=self.transform)
+            else:
+                try:
+                    self.ds_valid = self.load(
+                        self.data_source, split='train[:256]', transform=self.dropper)
+                except ValueError as e:
+                    self.ds_valid = self.load(
+                        self.data_source, split='train[:30%]', transform=self.dropper)
+
+        # Assign test dataset for use in dataloader(s)
+        if stage == "test":
+            self.ds_test = self.load(
+                self.data_source, split=self.split, transform=self.transform)
+
+    def train_dataloader(self):
+        return DataLoader(self.ds_train,
+                          collate_fn=default_data_collator,
+                          num_workers=self.num_of_workers,
+                          drop_last=True, shuffle=True,
+                          batch_size=self.batch_size)
+
+    def val_dataloader(self):
+        return DataLoader(self.ds_valid,
+                          collate_fn=default_data_collator,
+                          num_workers=self.num_of_workers,
+                          batch_size=self.batch_size)
+
+    def test_dataloader(self):
+        return DataLoader(self.ds_test,
+                          # collate_fn=default_data_collator,
+                          num_workers=self.num_of_workers,
+                          batch_size=self.batch_size)
+
+
+# def find_latest_checkpoints(checkpoint_dir):
+#     ckpts = sorted(glob.glob(checkpoint_dir+"/*.ckpt"))
+#     if len(ckpts) == 0:
+#         return None
+#     else:
+#         return ckpts[-1]
 
 
 class T5FineTuner(pl.LightningModule):
@@ -173,7 +304,6 @@ class T5FineTuner(pl.LightningModule):
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "frequency": 1}]
 
     def configure_Adafactor(self):
-        from transformers.optimization import Adafactor, AdafactorSchedule
         optimizer = Adafactor(
             self.grouped_parameters(),
             scale_parameter=True,
@@ -184,7 +314,6 @@ class T5FineTuner(pl.LightningModule):
         return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
 
     def configure_ConstantAdafactor(self):
-        from transformers.optimization import Adafactor
         optimizer = Adafactor(
             self.model.parameters(),
             scale_parameter=False,
@@ -197,67 +326,8 @@ class T5FineTuner(pl.LightningModule):
 
 # Note - you must have torchvision installed for this example
 
-def transform_nop(x):
-    return x
 
-
-class T5DataModule(pl.LightningDataModule):
-    def __init__(self, data_files: str, valid_files=None,
-                 transform=transform_nop,
-                 valid_split='valid', test_split='test',
-                 batch_size=32, num_of_workers=0, streaming=False):
-        super().__init__()
-        self.file_type = 'json'
-        self.data_files = data_files
-        self.valid_files = valid_files
-        self.valid_split = valid_split
-        self.test_split = test_split
-        self.transform = transform
-        self.streaming = streaming
-        self.batch_size = batch_size
-        self.num_of_workers = num_of_workers
-
-    def load(self, data_files, split='train'):
-        ds = load_dataset(self.file_type,
-                          data_files=data_files,
-                          split=split, streaming=self.streaming)
-        return ds.map(self.transform).with_format('torch')
-
-    # def map(self, ds):
-    #     return ds.with_format('torch')
-    #     # return ds.map(transform_nop).with_format('torch')
-
-    def setup(self, stage: str):
-        # Assign train/val datasets for use in dataloaders
-        if stage == "fit":
-            self.ds_train = self.load(self.data_files, split='train')
-            if self.valid_files:
-                self.ds_valid = self.load(self.valid_files, split='train')
-            else:
-                self.ds_valid = self.load(
-                    self.data_files, split=self.valid_split)
-        # Assign test dataset for use in dataloader(s)
-        if stage == "test":
-            self.ds_test = self.load(self.data_files, split=self.test_split)
-
-    def train_dataloader(self):
-        return DataLoader(self.ds_train,
-                          collate_fn=default_data_collator,
-                          num_workers=self.num_of_workers,  # drop_last=True, shuffle=True,
-                          batch_size=self.batch_size)
-
-    def val_dataloader(self):
-        return DataLoader(self.ds_valid,
-                          num_workers=self.num_of_workers,
-                          batch_size=self.batch_size)
-
-    def test_dataloader(self):
-        return DataLoader(self.ds_test,
-                          num_workers=self.num_of_workers,
-                          batch_size=self.batch_size)
-
-
-class T5Model(object):
+class T5ModelTrainer(object):
     def __init__(self, model_path='kkuramitsu/mt5np_small8k',
                  tokenizer_path=None,
                  max_length=128, target_max_length=None,
@@ -310,14 +380,15 @@ class T5Model(object):
             "target_mask": target_mask.to(dtype=torch.long),
         }
 
-    def fit(self, data_files, val_files=None,
-            max_epochs=10, max_hours=None, n_gpus=None, training_steps=10000,
+    def fit(self, data_files, split='train', valid_split=None,
+            max_epochs=10, max_hours=None, n_gpus=None,
+            training_steps=10000,
             solver='adamw',
             learning_rate=3e-4, adam_epsilon=1e-8, weight_decay=0.0,
             early_stopping=False, checkpoint_path=None,
             output_path=None, random_seed=42, streaming=False):
         set_seed(random_seed)  # 乱数を初期化
-        data = T5DataModule(data_files, val_files,
+        data = T5DataModule(data_files, split=split, valid_split=valid_split,
                             transform=self.transform,
                             batch_size=self.step_batch_size,
                             num_of_workers=self.num_of_workers,
@@ -335,6 +406,7 @@ class T5Model(object):
                 gpus=(1 if USE_GPU else 0) if n_gpus is None else n_gpus,
                 auto_scale_batch_size="binsearch",
             )
+            data.batch_size = self.batch_size // 4
             tuner.tune(model, data)
             debug_print('GPU: batch_size', data.batch_size)
             self.step_batch_size = data.batch_size
@@ -393,7 +465,7 @@ class T5Model(object):
     def predict(self, test_files, split='train', output_file='result.jsonl', streaming=False):
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
         data = T5DataModule(test_files,
-                            transform=self.transform, test_split=split,
+                            transform=self.transform, split=split,
                             batch_size=self.step_batch_size,
                             num_of_workers=self.num_of_workers,
                             streaming=streaming)
@@ -492,11 +564,13 @@ def setup_hyperparameters():
 
 
 def main():
-    model = T5Model('kkuramitsu/mt5np_small8k',
-                    batch_size=256, num_of_workers=4)
-    model.fit('music/music_train.jsonl',
-              'music/music_valid.jsonl', solver='adafactor')
-    print(model.predict('music/music_test.jsonl'))
+    model = T5ModelTrainer('kkuramitsu/mt5np_small8k',
+                           step_batch_size=32,
+                           batch_size=256, num_of_workers=4)
+    model.fit('music_train.jsonl.gz',
+              max_epochs=1,
+              solver='adafactor')
+    print(model.predict('music_test.jsonl.gz'))
 
 
 if __name__ == '__main__':

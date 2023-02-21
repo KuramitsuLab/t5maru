@@ -1,3 +1,5 @@
+torch
 sentencepiece
 transformers
 datasets
+pytorch_lightning
