@@ -23,6 +23,12 @@ setup(name="trainmaru",
       package_dir={"trainmaru": ""},
       package_data={'trainmaru': ['*/*']},
       install_requires=_requires_from_file('requirements.txt'),
+      entry_points={
+          "console_scripts": [
+              "t5train=trainmaru.t5train:main",
+              "t5test=trainmaru.t5train:main_test",
+          ]
+      },
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: MIT License',

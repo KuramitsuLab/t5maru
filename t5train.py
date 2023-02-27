@@ -9,14 +9,14 @@ import json
 
 import torch
 from torch.utils.data import DataLoader
-# from torch.optim import AdamW
+from torch.optim import AdamW
 
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
     get_linear_schedule_with_warmup
 )
-from transformers.optimization import Adafactor, AdafactorSchedule, AdamW
+from transformers.optimization import Adafactor, AdafactorSchedule
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -107,7 +107,7 @@ class T5DataModule(pl.LightningDataModule):
             files = []
             for file in data_source:
                 files.extend(self.valid_files(file))
-            return self.file_type(data_source[0])
+            return files
         assert isinstance(data_source, str)
         if '_train.' in data_source:
             file = data_source.replace('_train.', '_valid.')
@@ -132,7 +132,7 @@ class T5DataModule(pl.LightningDataModule):
     def dropper(self, data: dict):
         if 'in' in data:
             data['in'] = ''.join(c for c in data['in']
-                                 if random.random() > 0.1)
+                                 if random.random() > 0.1 or ord(c) < 128)
         return self.transform(data)
 
     def setup(self, stage: str):
@@ -380,7 +380,8 @@ class T5ModelTrainer(object):
             "target_mask": target_mask.to(dtype=torch.long),
         }
 
-    def fit(self, data_files, split='train', valid_split=None,
+    def fit(self, data_files,
+            split='train', valid_split=None,
             max_epochs=10, max_hours=None, n_gpus=None,
             training_steps=10000,
             solver='adamw',
@@ -404,7 +405,7 @@ class T5ModelTrainer(object):
             tuner = pl.Trainer(
                 enable_progress_bar=isatty(),
                 gpus=(1 if USE_GPU else 0) if n_gpus is None else n_gpus,
-                auto_scale_batch_size="binsearch",
+                auto_scale_batch_size="power",
             )
             data.batch_size = self.batch_size // 4
             tuner.tune(model, data)
@@ -462,13 +463,28 @@ class T5ModelTrainer(object):
         model.model.save_pretrained(output_path)
         self.model_path = output_path
 
-    def predict(self, test_files, split='train', output_file='result.jsonl', streaming=False):
+    def extract_filename(self, file):
+        if '/' in file:
+            _, _, file = file.rpartition('/')
+        file = file.replace('.gz', '')
+        if not file.endswith('.jsonl'):
+            file = file+'.jsonl'
+        return file
+
+    def predict_(self, test_file, split='train', streaming=False):
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
-        data = T5DataModule(test_files,
+        if '[' in test_file:
+            test_file, _, split = test_file.partition('[')
+            split = f'train[{split}'
+        data = T5DataModule(test_file,
                             transform=self.transform, split=split,
                             batch_size=self.step_batch_size,
                             num_of_workers=self.num_of_workers,
                             streaming=streaming)
+        if os.path.isdir(self.model_path):
+            output_file = f'{self.model_path}/pred_{self.extract_filename(test_file)}'
+        else:
+            output_file = f'pred_{self.extract_filename(test_file)}'
         data.setup('test')
         results = {}
         dataloader = data.test_dataloader()
@@ -492,6 +508,7 @@ class T5ModelTrainer(object):
             else:
                 results['pred'] = preds
         if output_file:
+            debug_print('writing', output_file)
             with open(output_file, 'w') as w:
                 keys = list(results.keys())
                 for idx in range(len(results['pred'])):
@@ -499,39 +516,42 @@ class T5ModelTrainer(object):
                     print(json.dumps(d, ensure_ascii=False), file=w)
         return results
 
+    def predict(self, test_files, streaming=False):
+        if isinstance(test_files, list):
+            for test_file in test_files:
+                self.predict_(test_file, streaming=streaming)
+        else:
+            self.predict_(test_files, streaming=streaming)
 
-def setup_hyperparameters():
+
+def setup():
     import argparse
     # ハイパーパラメータの読み込み  何も書かなければ、デフォルト値 default
     # python3 finetune.py --batch_size 64
-    parser = argparse.ArgumentParser(description='train script')
+    parser = argparse.ArgumentParser(description='t5train script')
     parser.add_argument('files', type=str, nargs='+', help='jsonl files')
-    parser.add_argument('--model_path', default='google/mt5-small')
+    parser.add_argument('--model_path', default='kkuramitsu/mt5np_small8k')
     parser.add_argument('--tokenizer_path', default=None)
-    parser.add_argument('--checkpoint_path', default=None)
     parser.add_argument('--output_path', default='model')
-    parser.add_argument('--tested_file', default='tested.jsonl')
+    parser.add_argument('--checkpoint_path', default=None)
     parser.add_argument('--max_length', type=int, default=128)
     parser.add_argument('--source_max_length', type=int, default=None)
     parser.add_argument('--target_max_length', type=int, default=None)
+    parser.add_argument('--batch_size', type=int, default=256)  # 自動
+    parser.add_argument('--step_batch_size', type=int, default=0)  # 自動
     parser.add_argument('--max_epochs', type=int, default=10)
-    parser.add_argument('--max_time', type=str, default=None)
-    parser.add_argument('--batch_size', type=int, default=32)  # 自動
+    parser.add_argument('--max_hours', type=float, default=None)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--weight_decay', type=float, default=0.0)
     parser.add_argument('--adam_epsilon', type=float, default=1e-8)
     parser.add_argument('--warmup_steps', type=int, default=1)
     parser.add_argument('--max_grad_norm', type=float, default=1.0)
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--precision', type=int, default=32)
     parser.add_argument('--n_gpus', type=int, default=1 if USE_GPU else 0)
-    # https://note.nkmk.me/python-argparse-bool/
-    parser.add_argument('--auto_batch_size',
-                        action='store_true', default=False)
     parser.add_argument('--early_stopping', action='store_true', default=False)
-    parser.add_argument('--progress_bar', action='store_true', default=False)
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
 
     hparams = parser.parse_args()  # hparams になる
@@ -542,28 +562,46 @@ def setup_hyperparameters():
         hparams.source_max_length = hparams.max_length
     if hparams.target_max_length is None:
         hparams.target_max_length = hparams.max_length
-    hparams.test = sum(1 for file in hparams.files if '_test.' in file) > 0
-
-    # 訓練パラメータの設定
-    # https://torch.classcat.com/2021/02/22/pytorch-lightning-1-1-notebooks-05-trainer-flags-overview-2/
-    train_params = dict(
-        enable_progress_bar=hparams.progress_bar,
-        fast_dev_run=hparams.fast_dev_run,
-        gpus=hparams.n_gpus,
-        max_epochs=hparams.max_epochs,
-        max_time=hparams.max_time,  # "00:00:15:00"
-        gradient_clip_val=hparams.max_grad_norm,
-        # k バッチ毎に勾配を蓄積する batch_size * k になる
-        accumulate_grad_batches=hparams.gradient_accumulation_steps,
-        # batch_size の自動調整,  hparams.batch_size が上書きされる
-        auto_scale_batch_size="binsearch" if hparams.auto_batch_size else None,
-        precision=hparams.precision,
-        #        amp_level='O2' if hparams.precision == 16 else 'O0'
-    )
-    return hparams, train_params
+    return hparams
 
 
 def main():
+    hparams = setup()
+    train_files = [file for file in hparams.files if '_test.' not in file]
+    test_files = [file for file in hparams.files if '_test.' in file]
+
+    model = T5ModelTrainer(
+        model_path=hparams.model_path,
+        batch_size=hparams.batch_size,
+        max_length=hparams.source_max_length,
+        target_max_length=hparams.target_max_length,
+        step_batch_size=hparams.step_batch_size,
+        num_of_workers=hparams.num_workers)
+    if len(train_files) > 0:
+        model.fit(train_files,
+                  random_seed=hparams.seed,
+                  max_epochs=hparams.max_epochs,
+                  max_hours=hparams.max_hours,
+                  early_stopping=hparams.early_stopping,
+                  output_path=hparams.output_path,
+                  solver='adamw')
+    if len(test_files) > 0:
+        model.predict(test_files)
+
+
+def main_test():
+    hparams = setup()
+    model = T5ModelTrainer(
+        model_path=hparams.model_path,
+        batch_size=hparams.batch_size,
+        max_length=hparams.source_max_length,
+        target_max_length=hparams.target_max_length,
+        step_batch_size=hparams.step_batch_size,
+        num_of_workers=hparams.num_workers)
+    model.predict(hparams.files)
+
+
+def main2():
     model = T5ModelTrainer('kkuramitsu/mt5np_small8k',
                            step_batch_size=32,
                            batch_size=256, num_of_workers=4)
