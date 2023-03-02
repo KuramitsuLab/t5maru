@@ -47,11 +47,33 @@ DUP = set()
 def debug_print(*args, **kwargs):
     if len(DUP) < 512:
         sep = kwargs.get('sep', ' ')
-        text = ' '.join(str(a) for a in args)
+        text = sep.join(str(a) for a in args)
         if text in DUP:
             return
         print('😱', text)
         DUP.add(text)
+
+
+LOGFILE = None
+
+
+def set_logfile(output_path):
+    global LOGFILE
+    os.makedirs(output_path, exist_ok=True)
+    LOGFILE = f'{output_path}/train_log.txt'
+
+
+def print_log(*args, **kwargs):
+    if LOGFILE:
+        sep = kwargs.get('sep', ' ')
+        text = sep.join(str(a) for a in args)
+        try:
+            with open(LOGFILE, 'a') as w:
+                print(text, file=w)
+        except:
+            pass
+        finally:
+            print('💭', text)
 
 
 USE_GPU = torch.cuda.is_available()
@@ -190,12 +212,13 @@ class T5DataModule(pl.LightningDataModule):
 
 
 class T5FineTuner(pl.LightningModule):
-    def __init__(self, model_path, solver='adamw',
+    def __init__(self, model_path, solver='adamw', output_path=None,
                  learning_rate=3e-4, adam_epsilon=1e-8, weight_decay=0.0,
                  training_steps=100000):
         super(T5FineTuner, self).__init__()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
         debug_print('model', self.model.config)
+        self.output_path = output_path
         self.solver = solver
         self.weight_decay = weight_decay
         self.learning_rate = learning_rate
@@ -243,6 +266,10 @@ class T5FineTuner(pl.LightningModule):
         ppl = torch.exp(avg_loss)
         self.log("avg_loss", avg_loss, prog_bar=True)
         self.log("train_ppl", ppl, prog_bar=True)
+        if self.output_path:
+            self.model.save_pretrained(self.output_path)
+        print_log(
+            f'train epoch={self.current_epoch+1} loss={avg_loss:.5f} PPL={ppl:.5f}')
         if not isatty():
             debug_print(
                 f'Epoch {self.current_epoch+1} train_loss {avg_loss:.5f} PPL {ppl:.5f}')
@@ -259,6 +286,8 @@ class T5FineTuner(pl.LightningModule):
         ppl = torch.exp(avg_loss)
         self.log("avg_loss", avg_loss, prog_bar=True)
         self.log("val_ppl", ppl, prog_bar=False)
+        print_log(
+            f'val epoch={self.current_epoch+1} loss={avg_loss:.5f} PPL={ppl:.5f}')
         if not isatty():
             debug_print(
                 f'Epoch {self.current_epoch+1} val_loss {avg_loss:.5f} PPL {ppl:.5f}')
@@ -387,7 +416,7 @@ class T5ModelTrainer(object):
             solver='adamw',
             learning_rate=3e-4, adam_epsilon=1e-8, weight_decay=0.0,
             early_stopping=False, checkpoint_path=None,
-            output_path=None, random_seed=42, streaming=False):
+            output_path='model', random_seed=42, streaming=False):
         set_seed(random_seed)  # 乱数を初期化
         data = T5DataModule(data_files, split=split, valid_split=valid_split,
                             transform=self.transform,
@@ -400,6 +429,7 @@ class T5ModelTrainer(object):
             learning_rate=learning_rate,
             adam_epsilon=adam_epsilon,
             weight_decay=weight_decay,
+            output_path=output_path,
             training_steps=training_steps)
         if self.step_batch_size < 1:
             tuner = pl.Trainer(
@@ -409,10 +439,12 @@ class T5ModelTrainer(object):
             )
             data.batch_size = self.batch_size // 4
             tuner.tune(model, data)
-            debug_print('GPU: batch_size', data.batch_size)
+            print_log('[auto_batch_size]', data.batch_size)
             self.step_batch_size = data.batch_size
         accumulate_grad_batches = max(
             self.batch_size // self.step_batch_size, 1)
+        print_log('[atch_size]', self.batch_size)
+        print_log('[accumulate_grad_batches]', accumulate_grad_batches)
         # EarlyStopping
         callbacks = []
         if early_stopping:
@@ -440,7 +472,7 @@ class T5ModelTrainer(object):
             hours = hours % 24
             mins = int(60 * (max_hours - hours))
             max_time = {'days': days, 'hours': hours, 'minutes': mins}
-            debug_print('[max_time]', max_time)
+            print_log('[max_time]', max_time)
         trainer = pl.Trainer(
             enable_progress_bar=isatty(),
             fast_dev_run=self.debug,
@@ -457,8 +489,6 @@ class T5ModelTrainer(object):
         if max_epochs > 0:
             trainer.fit(model, data)
         # 最終エポックのモデルを保存 output_path に保存します
-        if output_path is None:
-            output_path = 'model'
         self.tokenizer.save_pretrained(output_path)
         model.model.save_pretrained(output_path)
         self.model_path = output_path
@@ -471,14 +501,15 @@ class T5ModelTrainer(object):
             file = file+'.jsonl'
         return file
 
-    def predict_(self, test_file, split='train', streaming=False):
+    def predict(self, test_file, split='train', streaming=False):
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
         if '[' in test_file:
             test_file, _, split = test_file.partition('[')
             split = f'train[{split}'
+        batch_size = 1 if self.step_batch_size < 1 else self.step_batch_size
         data = T5DataModule(test_file,
                             transform=self.transform, split=split,
-                            batch_size=self.step_batch_size,
+                            batch_size=batch_size,
                             num_of_workers=self.num_of_workers,
                             streaming=streaming)
         if os.path.isdir(self.model_path):
@@ -516,13 +547,6 @@ class T5ModelTrainer(object):
                     print(json.dumps(d, ensure_ascii=False), file=w)
         return results
 
-    def predict(self, test_files, streaming=False):
-        if isinstance(test_files, list):
-            for test_file in test_files:
-                self.predict_(test_file, streaming=streaming)
-        else:
-            self.predict_(test_files, streaming=streaming)
-
 
 def setup():
     import argparse
@@ -530,7 +554,7 @@ def setup():
     # python3 finetune.py --batch_size 64
     parser = argparse.ArgumentParser(description='t5train script')
     parser.add_argument('files', type=str, nargs='+', help='jsonl files')
-    parser.add_argument('--model_path', default='kkuramitsu/mt5np_small8k')
+    parser.add_argument('--model_path', default='kkuramitsu/mt5np_mini12L')
     parser.add_argument('--tokenizer_path', default=None)
     parser.add_argument('--output_path', default='model')
     parser.add_argument('--checkpoint_path', default=None)
@@ -562,6 +586,9 @@ def setup():
         hparams.source_max_length = hparams.max_length
     if hparams.target_max_length is None:
         hparams.target_max_length = hparams.max_length
+    set_logfile(hparams.output_path)
+    print_log('[script]', ' '.join(sys.argv))
+    print_log('[hparams]', hparams)
     return hparams
 
 
@@ -578,6 +605,7 @@ def main():
         step_batch_size=hparams.step_batch_size,
         num_of_workers=hparams.num_workers)
     if len(train_files) > 0:
+        print_log('[train]', train_files)
         model.fit(train_files,
                   random_seed=hparams.seed,
                   max_epochs=hparams.max_epochs,
@@ -586,7 +614,9 @@ def main():
                   output_path=hparams.output_path,
                   solver='adamw')
     if len(test_files) > 0:
-        model.predict(test_files)
+        print_log('[test]', test_files)
+        for test_file in test_files:
+            model.predict(test_file)
 
 
 def main_test():
@@ -598,11 +628,12 @@ def main_test():
         target_max_length=hparams.target_max_length,
         step_batch_size=hparams.step_batch_size,
         num_of_workers=hparams.num_workers)
-    model.predict(hparams.files)
+    for test_file in hparams.files:
+        model.predict(test_file)
 
 
 def main2():
-    model = T5ModelTrainer('kkuramitsu/mt5np_small8k',
+    model = T5ModelTrainer('kkuramitsu/mt5np_mini12L',
                            step_batch_size=32,
                            batch_size=256, num_of_workers=4)
     model.fit('music_train.jsonl.gz',
