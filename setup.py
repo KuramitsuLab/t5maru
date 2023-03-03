@@ -14,7 +14,7 @@ def _requires_from_file(filename):
 
 
 setup(name="trainmaru",
-      version="0.0.1",
+      version="0.0.2",
       license='MIT',
       author='Kimio Kuramitsu',
       description="Deep Learning",
