@@ -433,6 +433,7 @@ class T5ModelTrainer(object):
             training_steps=training_steps)
         if self.step_batch_size < 1:
             tuner = pl.Trainer(
+                max_epochs=3,
                 enable_progress_bar=isatty(),
                 gpus=(1 if USE_GPU else 0) if n_gpus is None else n_gpus,
                 auto_scale_batch_size="power",
@@ -443,7 +444,7 @@ class T5ModelTrainer(object):
             self.step_batch_size = data.batch_size
         accumulate_grad_batches = max(
             self.batch_size // self.step_batch_size, 1)
-        print_log('[atch_size]', self.batch_size)
+        print_log('[batch_size]', self.batch_size)
         print_log('[accumulate_grad_batches]', accumulate_grad_batches)
         # EarlyStopping
         callbacks = []
@@ -563,6 +564,7 @@ def setup():
     parser.add_argument('--target_max_length', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=256)  # 自動
     parser.add_argument('--step_batch_size', type=int, default=0)  # 自動
+    parser.add_argument('--solver', type=str, default='adamw')
     parser.add_argument('--max_epochs', type=int, default=10)
     parser.add_argument('--max_hours', type=float, default=None)
     parser.add_argument('--num_workers', type=int, default=4)
@@ -573,12 +575,14 @@ def setup():
     parser.add_argument('--max_grad_norm', type=float, default=1.0)
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--precision', type=int, default=32)
+    parser.add_argument('--float32_matmul_precision', type=str, default=None)
     parser.add_argument('--n_gpus', type=int, default=1 if USE_GPU else 0)
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
 
     hparams = parser.parse_args()  # hparams になる
+    if hparams.float32_matmul_precision is not None:
+        torch.set_float32_matmul_precision(hparams.float32_matmul_precision)
     # デフォルトがNoneのときは
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
@@ -612,7 +616,7 @@ def main():
                   max_hours=hparams.max_hours,
                   early_stopping=hparams.early_stopping,
                   output_path=hparams.output_path,
-                  solver='adamw')
+                  solver=hparams.solver)
     if len(test_files) > 0:
         print_log('[test]', test_files)
         for test_file in test_files:
