@@ -579,10 +579,15 @@ def setup():
     parser.add_argument('--n_gpus', type=int, default=1 if USE_GPU else 0)
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
+    parser.add_argument('--pretrain', action='store_true', default=False)
 
     hparams = parser.parse_args()  # hparams になる
     if hparams.float32_matmul_precision is not None:
         torch.set_float32_matmul_precision(hparams.float32_matmul_precision)
+    if hparams.pretrain is not None:
+        hparams.batch_size = 1024
+        hparams.solver = 'adafactor'
+        torch.set_float32_matmul_precision('medium')
     # デフォルトがNoneのときは
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
