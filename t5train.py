@@ -143,8 +143,10 @@ class T5DataModule(pl.LightningDataModule):
             ds = load_dataset(file_type,
                               data_files=data_source, split=split,
                               streaming=self.streaming, **kwargs)
-            return ds.map(transform).with_format('torch')
-        return data_source.map(transform).with_format('torch')
+            ds = ds.map(
+                transform, num_proc=self.num_of_workers).with_format('torch')
+            return ds
+        return data_source.map(transform, num_proc=self.num_of_workers).with_format('torch')
 
     def exists(self, file_path):
         if file_path.startswith('https://') or file_path.startswith('http://'):
@@ -588,6 +590,8 @@ def setup():
         hparams.batch_size = 1024
         hparams.solver = 'adafactor'
         torch.set_float32_matmul_precision('medium')
+        from datasets.utils import set_progress_bar_enabled
+        set_progress_bar_enabled(False)
     # デフォルトがNoneのときは
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
