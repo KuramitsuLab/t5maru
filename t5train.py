@@ -650,7 +650,7 @@ def main():
             if hparams.score and 'out' in results and 'pred' in results:
                 outfile = get_filename(test_file).replace('.jsonl', '.csv')
                 outfile = f'{hparams.output_path}/{outfile}'
-                dump_score(results['out'], results['pred'],
+                calc_score(results['out'], results['pred'],
                            outfile, hparams.score, test_file, hparams.model_path)
 
 
@@ -669,7 +669,7 @@ def main_test():
         if hparams.score and 'out' in results and 'pred' in results:
             outfile = get_filename(test_file).replace('.jsonl', '.csv')
             outfile = f'{hparams.output_path}/{outfile}'
-            dump_score(results['out'], results['pred'],
+            calc_score(results['out'], results['pred'],
                        outfile, hparams.score, test_file, hparams.model_path)
 
 
