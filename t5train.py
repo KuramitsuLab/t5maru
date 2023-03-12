@@ -651,7 +651,8 @@ def main():
                 outfile = get_filename(test_file).replace('.jsonl', '.csv')
                 outfile = f'{hparams.output_path}/{outfile}'
                 calc_score(results['out'], results['pred'],
-                           outfile, hparams.score, test_file, hparams.model_path)
+                           outfile, hparams.score, test_file,
+                           hparams.model_path, print_fn=print_log)
 
 
 def main_test():

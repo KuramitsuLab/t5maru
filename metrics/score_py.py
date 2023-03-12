@@ -296,7 +296,7 @@ def get_filename(filepath):
     return filepath
 
 
-def score_py(refs, preds, outputfile, testfile='', model_id=''):
+def score_py(refs, preds, outputfile, testfile='', model_id='', print_fn=print):
     results = {
         'Model': model_id,
         'Test': get_filename(testfile),
@@ -317,11 +317,11 @@ def score_py(refs, preds, outputfile, testfile='', model_id=''):
                         value = results[key] = 0.5 * pval + 0.5 * rval
             results[key] = value
         if isinstance(value, float):
-            print(f'{key}: {value:.3f}')
+            print_fn(f'{key}: {value:.3f}')
         else:
-            print(f'{key}: {value}')
+            print_fn(f'{key}: {value}')
     if outputfile:
-        print('writing', outputfile)
+        print_fn('[writing]', outputfile)
         with open(outputfile, 'w') as w:
             for key in results:
                 print(f'{key},', end='', file=w)
