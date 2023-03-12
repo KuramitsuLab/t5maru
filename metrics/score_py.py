@@ -177,14 +177,15 @@ def record_score(key: str, score: float, results=None):
 
 
 def calc_LCS(ref, pred, results):
-    match = SequenceMatcher(None, ref, pred).find_longest_match(
-        0, len(ref), 0, len(pred))
-    # Recall: refの共通部分文字列を、どれだけ当てられたか
-    record_score('LCS_r', match.size/len(pred), results)
-    # Precision: predの共通部分文字列を、どれだけ含んでいるか？
-    record_score('LCS_p', match.size/len(ref), results)
-    # 調和平均 F1
-    record_score('LCS', match.size*2/(len(pred)+len(ref)), results)
+    if len(ref) > 0 and len(pred) > 0:
+        match = SequenceMatcher(None, ref, pred).find_longest_match(
+            0, len(ref), 0, len(pred))
+        # Recall: refの共通部分文字列を、どれだけ当てられたか
+        record_score('LCS_r', match.size/len(pred), results)
+        # Precision: predの共通部分文字列を、どれだけ含んでいるか？
+        record_score('LCS_p', match.size/len(ref), results)
+        # 調和平均 F1
+        record_score('LCS', match.size*2/(len(pred)+len(ref)), results)
 
 # https://qiita.com/icoxfog417/items/65faecbbe27d3c53d212
 
