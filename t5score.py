@@ -5,6 +5,7 @@ from .metrics import calc_score
 def setup():
     import argparse
     parser = argparse.ArgumentParser(description='t5score script')
+    parser.add_argument('files', type=str, nargs='+', help='jsonl files')
     parser.add_argument('--score', type=str, default='auto')
     hparams = parser.parse_args()  # hparams になる
     return hparams
