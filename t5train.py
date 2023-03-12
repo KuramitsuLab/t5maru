@@ -28,12 +28,12 @@ from datasets import load_dataset
 datasets.utils.logging.set_verbosity_warning()
 
 try:
-    from .metrics import dump_score, get_filename
+    from .metrics import calc_score, get_filename
 except:
     def get_filename(s):
         return s
 
-    def dump_score(*args, **kwargs):
+    def calc_score(*args, **kwargs):
         pass
 
 # https://www.kaggle.com/code/noriyukipy/text-classification-dataloader-from-datasets

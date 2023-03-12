@@ -1,5 +1,5 @@
 import json
-from .metrics import dump_score
+from .metrics import calc_score
 
 
 def setup():
@@ -26,7 +26,7 @@ def main():
     for file in hparams.files:
         refs, preds = read_jsonl(file)
         outfile = file.replace('.jsonl', '.csv')
-        dump_score(refs, preds, outfile, hparams.score, file)
+        calc_score(refs, preds, outfile, hparams.score, file)
 
 
 if __name__ == '__main__':
