@@ -26,7 +26,7 @@ def main():
     hparams = setup()
     for file in hparams.files:
         refs, preds = read_jsonl(file)
-        outfile = file.replace('.jsonl', '.csv')
+        outfile = file.replace('.jsonl', '.csv').replace('.gz', '')
         calc_score(refs, preds, outfile, hparams.score, file)
 
 

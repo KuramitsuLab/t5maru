@@ -595,13 +595,15 @@ def setup():
     parser.add_argument('--pretrain', action='store_true', default=False)
     parser.add_argument('--score', type=str, default=None)
 
+    print_log('[script]', ' '.join(sys.argv))
+
     hparams = parser.parse_args()  # hparams になる
-    if hparams.float32_matmul_precision is not None:
-        torch.set_float32_matmul_precision(hparams.float32_matmul_precision)
-    if hparams.pretrain is not None:
+    if hparams.pretrain == True:
         hparams.batch_size = 1024
         hparams.solver = 'adafactor'
         torch.set_float32_matmul_precision('medium')
+
+    if not isatty():
         disable_progress_bar()
 
     # デフォルトがNoneのときは
@@ -612,7 +614,6 @@ def setup():
     if hparams.target_max_length is None:
         hparams.target_max_length = hparams.max_length
     set_logfile(hparams.output_path)
-    print_log('[script]', ' '.join(sys.argv))
     print_log('[hparams]', hparams)
     return hparams
 
@@ -648,7 +649,8 @@ def main():
         for test_file in test_files:
             results = model.predict(test_file)
             if hparams.score and 'out' in results and 'pred' in results:
-                outfile = get_filename(test_file).replace('.jsonl', '.csv')
+                outfile = get_filename(test_file).replace(
+                    '.jsonl', '.csv').replace('.gz', '')
                 outfile = f'{hparams.output_path}/{outfile}'
                 calc_score(results['out'], results['pred'],
                            outfile, hparams.score, test_file,
