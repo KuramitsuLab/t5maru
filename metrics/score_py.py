@@ -309,11 +309,12 @@ def score_py(refs, preds, outputfile, testfile='', model_id=''):
             if len(value) > 0:
                 value = 100.0 * sum(value)/len(value)
             else:
+                value = ''
                 if f'{key}_p' in results:
-                    value = results[key] = 0.5 * \
-                        results[f'{key}_p'] + 0.5 * results[f'{key}_r']
-                else:
-                    value = ''
+                    pval = results[f'{key}_p']
+                    rval = results[f'{key}_r']
+                    if isinstance(pval, float) and isinstance(rval, float):
+                        value = results[key] = 0.5 * pval + 0.5 * rval
             results[key] = value
         if isinstance(value, float):
             print(f'{key}: {value:.3f}')
