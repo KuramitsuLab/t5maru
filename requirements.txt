@@ -3,3 +3,6 @@ sentencepiece
 transformers
 datasets
 pytorch_lightning
+black 
+Levenshtein
+sumeval

@@ -14,12 +14,12 @@ def _requires_from_file(filename):
 
 
 setup(name="trainmaru",
-      version="0.0.4",
+      version="0.0.5",
       license='MIT',
       author='Kimio Kuramitsu',
       description="Deep Learning",
       url="https://github.com/kkuramitsu/kogi",
-      packages=['trainmaru'],
+      packages=['trainmaru', 'trainmaru.metrics'],
       package_dir={"trainmaru": ""},
       package_data={'trainmaru': ['*/*']},
       install_requires=_requires_from_file('requirements.txt'),
@@ -27,6 +27,7 @@ setup(name="trainmaru",
           "console_scripts": [
               "t5train=trainmaru.t5train:main",
               "t5test=trainmaru.t5train:main_test",
+              "t5score=trainmaru.t5score:main",
           ]
       },
       classifiers=[

@@ -1,5 +1,7 @@
 # import dill as pickle
 # import glob
+import time
+from datasets.utils import disable_progress_bar
 from transformers import default_data_collator
 import os
 import urllib.request
@@ -24,6 +26,15 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import datasets
 from datasets import load_dataset
 datasets.utils.logging.set_verbosity_warning()
+
+try:
+    from .metrics import dump_score, get_filename
+except:
+    def get_filename(s):
+        return s
+
+    def dump_score(*args, **kwargs):
+        pass
 
 # https://www.kaggle.com/code/noriyukipy/text-classification-dataloader-from-datasets
 
@@ -582,6 +593,7 @@ def setup():
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
     parser.add_argument('--pretrain', action='store_true', default=False)
+    parser.add_argument('--score', type=str, default=None)
 
     hparams = parser.parse_args()  # hparams になる
     if hparams.float32_matmul_precision is not None:
@@ -590,8 +602,8 @@ def setup():
         hparams.batch_size = 1024
         hparams.solver = 'adafactor'
         torch.set_float32_matmul_precision('medium')
-        from datasets.utils import set_progress_bar_enabled
-        set_progress_bar_enabled(False)
+        disable_progress_bar()
+
     # デフォルトがNoneのときは
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
@@ -618,6 +630,7 @@ def main():
         step_batch_size=hparams.step_batch_size,
         num_of_workers=hparams.num_workers)
     if len(train_files) > 0:
+        t_start = time.time()
         print_log('[train]', train_files)
         model.fit(train_files,
                   random_seed=hparams.seed,
@@ -626,10 +639,19 @@ def main():
                   early_stopping=hparams.early_stopping,
                   output_path=hparams.output_path,
                   solver=hparams.solver)
+        t_time = (time.time() - t_start)
+        t_min = (t_time % 3600) / 60
+        print_log(
+            f'[trained] {t_time//3600}[H] {t_min}[M] {t_time:.3f}[sec]')
     if len(test_files) > 0:
         print_log('[test]', test_files)
         for test_file in test_files:
-            model.predict(test_file)
+            results = model.predict(test_file)
+            if hparams.score and 'out' in results and 'pred' in results:
+                outfile = get_filename(test_file).replace('.jsonl', '.csv')
+                outfile = f'{hparams.output_path}/{outfile}'
+                dump_score(results['out'], results['pred'],
+                           outfile, hparams.score, test_file, hparams.model_path)
 
 
 def main_test():
@@ -643,6 +665,12 @@ def main_test():
         num_of_workers=hparams.num_workers)
     for test_file in hparams.files:
         model.predict(test_file)
+        results = model.predict(test_file)
+        if hparams.score and 'out' in results and 'pred' in results:
+            outfile = get_filename(test_file).replace('.jsonl', '.csv')
+            outfile = f'{hparams.output_path}/{outfile}'
+            dump_score(results['out'], results['pred'],
+                       outfile, hparams.score, test_file, hparams.model_path)
 
 
 def main2():
