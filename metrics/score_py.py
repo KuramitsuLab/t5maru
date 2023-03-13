@@ -336,7 +336,7 @@ def get_filename(filepath):
 
 
 def harmonic_mean(r, p, beta=1.0):
-    return ((1+beta**2)*r*p)/r+(beta**2)*p
+    return ((1+beta**2)*r*p)/(r+(beta**2)*p)
 
 
 def score_py(refs, preds, outputfile, testfile='', model_id='', print_fn=print):
