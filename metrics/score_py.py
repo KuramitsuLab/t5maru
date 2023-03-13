@@ -1,3 +1,4 @@
+from collections import Counter
 import sys
 import json
 from difflib import SequenceMatcher
@@ -47,6 +48,17 @@ OP = '+*-/=<>!|&%@~'
 
 
 def extract_identifier(tokens: list, s: str, start):
+    end = start+1
+    while end < len(s):
+        if not s[end].isidentifier():
+            break
+        end += 1
+    t, end = substr(s, start, end)
+    tokens.append(t)
+    return end
+
+
+def extract_identifier0(tokens: list, s: str, start):
     end = re.match(PID, s[start:])
     if end:
         t, end = substr(s, start, start+end.end())
@@ -219,6 +231,34 @@ def calc_rouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
     record_score(f'{base}', None, results)
 
 
+def calc_crouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
+    # 識別子だけ取り出す
+    refc = Counter(t for t in ref_tokens if filter_fn(t))
+    predc = Counter(t for t in pred_tokens if filter_fn(t))
+    recall = None
+    precision = None
+    if len(refc) > 0:
+        # Recall: refの単語を、どれだけ当てられたか
+        recall = 0
+        for t in list(refc):
+            recall += predc[t]/refc[t]
+        recall = recall/len(refc)
+        record_score(f'{base}_r', recall, results)
+    else:
+        record_score(f'{base}_r', None, results)
+    if len(predc) > 0:
+        # Precision: 生成した要約が、どれだけ人手の要約に含まれているか
+        precision = 0
+        for t in list(predc):
+            for t in list(refc):
+                precision += refc[t]/predc[t]
+        precision = precision/len(predc)
+        record_score(f'{base}_p', precision, results)
+    else:
+        record_score(f'{base}_p', None, results)
+    record_score(f'{base}', None, results)
+
+
 OP_SET = set(
     '+ - * ** / // % = != == < > <= >= & | << >> ^ ~ @ not and or += -= *= **= /= //= %= |= &= ->'.split())
 PUNC_SET = set('( ) [ ] { } . , : ;'.split())
@@ -243,11 +283,11 @@ def is_isoperator(t: str):
 
 
 def calc_CodeROUGE(ref_tokens, pred_tokens, results=None):
-    calc_rouge('ROUGE-1', ref_tokens, pred_tokens, lambda t: True, results)
-    calc_rouge('ROUGE-I', ref_tokens, pred_tokens, is_isidentifier, results)
-    calc_rouge('ROUGE-In', ref_tokens, pred_tokens, is_isnumber, results)
-    calc_rouge('ROUGE-Is', ref_tokens, pred_tokens, is_isstring, results)
-    calc_rouge('ROUGE-Io', ref_tokens, pred_tokens, is_isoperator, results)
+    calc_crouge('CROUGE-1', ref_tokens, pred_tokens, lambda t: True, results)
+    calc_crouge('CROUGE-I', ref_tokens, pred_tokens, is_isidentifier, results)
+    calc_crouge('CROUGE-NUM', ref_tokens, pred_tokens, is_isnumber, results)
+    calc_crouge('CROUGE-STR', ref_tokens, pred_tokens, is_isstring, results)
+    calc_crouge('CROUGE-OP', ref_tokens, pred_tokens, is_isoperator, results)
 
 # BLEU
 
@@ -353,6 +393,7 @@ def main_calc(filepath, outputfile=None):
 
 
 if __name__ == '__main__':
-    for file in sys.argv[1:]:
-        if file.endswith('.jsonl'):
-            main_calc(file)
+    print(tokenize("_結果_ in _リスト_"))
+    # for file in sys.argv[1:]:
+    #     if file.endswith('.jsonl'):
+    #         main_calc(file)
