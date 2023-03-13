@@ -250,8 +250,7 @@ def calc_crouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
         # Precision: 生成した要約が、どれだけ人手の要約に含まれているか
         precision = 0
         for t in list(predc):
-            for t in list(refc):
-                precision += refc[t]/predc[t]
+            precision += refc[t]/predc[t]
         precision = precision/len(predc)
         record_score(f'{base}_p', precision, results)
     else:
