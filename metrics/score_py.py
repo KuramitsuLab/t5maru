@@ -335,6 +335,10 @@ def get_filename(filepath):
     return filepath
 
 
+def harmonic_mean(r, p, beta=1.0):
+    return ((1+beta**2)*r*p)/r+(beta**2)*p
+
+
 def score_py(refs, preds, outputfile, testfile='', model_id='', print_fn=print):
     results = {
         'Model': model_id,
@@ -353,7 +357,7 @@ def score_py(refs, preds, outputfile, testfile='', model_id='', print_fn=print):
                     pval = results[f'{key}_p']
                     rval = results[f'{key}_r']
                     if isinstance(pval, float) and isinstance(rval, float):
-                        value = results[key] = 0.5 * pval + 0.5 * rval
+                        value = results[key] = harmonic_mean(pval, rval)
             results[key] = value
         if isinstance(value, float):
             print_fn(f'{key}: {value:.3f}')
