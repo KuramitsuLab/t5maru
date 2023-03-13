@@ -241,7 +241,7 @@ def calc_crouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
         # Recall: refの単語を、どれだけ当てられたか
         recall = 0
         for t in list(refc):
-            recall += predc[t]/refc[t]
+            recall += max(1.0 - (refc[t]-predc[t])/refc[t], 0.0)
         recall = recall/len(refc)
         record_score(f'{base}_r', recall, results)
     else:
@@ -250,7 +250,7 @@ def calc_crouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
         # Precision: 生成した要約が、どれだけ人手の要約に含まれているか
         precision = 0
         for t in list(predc):
-            precision += refc[t]/predc[t]
+            precision += max(1.0 - abs(predc[t]-refc[t])/predc[t], 0.0)
         precision = precision/len(predc)
         record_score(f'{base}_p', precision, results)
     else:
