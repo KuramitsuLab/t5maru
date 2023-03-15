@@ -424,7 +424,7 @@ class T5ModelTrainer(object):
 
     def fit(self, data_files,
             split='train', valid_split=None,
-            max_epochs=10, max_hours=None, n_gpus=None,
+            max_epochs=10, max_hours=None,
             accelerator=None, devices=1, precision=32,
             solver='adamw', training_steps=10000,
             learning_rate=3e-4, adam_epsilon=1e-8, weight_decay=0.0,
@@ -611,8 +611,10 @@ def setup():
         hparams.solver = 'adafactor'
         # This setting is independent of the "precision" setting in the Trainer.
         torch.set_float32_matmul_precision('medium')
+        datasets.config.IN_MEMORY_MAX_SIZE = 40*(1024*1024*1024)
+        print_log('[in_memory]', datasets.config.IN_MEMORY_MAX_SIZE)
         if hparams.precision is None:
-            hparams.precision = 'bf16-mixed'  # A100
+            hparams.precision = 'bf16'  # A100
 
     if not isatty():
         disable_progress_bar()
