@@ -24,7 +24,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import datasets
-from datasets import load_dataset
+from datasets import load_dataset, disable_caching
 datasets.utils.logging.set_verbosity_warning()
 
 try:
@@ -425,12 +425,14 @@ class T5ModelTrainer(object):
     def fit(self, data_files,
             split='train', valid_split=None,
             max_epochs=10, max_hours=None, n_gpus=None,
-            training_steps=10000,
-            solver='adamw',
+            accelerator=None, devices=1, precision=32,
+            solver='adamw', training_steps=10000,
             learning_rate=3e-4, adam_epsilon=1e-8, weight_decay=0.0,
             early_stopping=False, checkpoint_path=None,
             output_path='model', random_seed=42, streaming=False):
         set_seed(random_seed)  # 乱数を初期化
+        if accelerator is None:
+            accelerator = 'gpu' if USE_GPU else 'cpu'
         data = T5DataModule(data_files, split=split, valid_split=valid_split,
                             transform=self.transform,
                             batch_size=self.step_batch_size,
@@ -448,7 +450,8 @@ class T5ModelTrainer(object):
             tuner = pl.Trainer(
                 max_epochs=3,
                 enable_progress_bar=isatty(),
-                gpus=(1 if USE_GPU else 0) if n_gpus is None else n_gpus,
+                accelerator=accelerator, devices=devices,
+                precision=precision,
                 auto_scale_batch_size="power",
             )
             data.batch_size = self.batch_size // 4
@@ -490,15 +493,14 @@ class T5ModelTrainer(object):
         trainer = pl.Trainer(
             enable_progress_bar=isatty(),
             fast_dev_run=self.debug,
-            gpus=(1 if USE_GPU else 0) if n_gpus is None else n_gpus,
+            accelerator=accelerator, devices=devices,
+            precision=precision,
             max_epochs=max_epochs,
             max_time=max_time,
             # gradient_clip_val=hparams.max_grad_norm,
             # k バッチ毎に勾配を蓄積する batch_size * k になる
             accumulate_grad_batches=accumulate_grad_batches,
             callbacks=callbacks,
-            # precision=hparams.precision,
-            # #        amp_level='O2' if hparams.precision == 16 else 'O0'
         )
         if max_epochs > 0:
             trainer.fit(model, data)
@@ -589,26 +591,40 @@ def setup():
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--float32_matmul_precision', type=str, default=None)
-    parser.add_argument('--n_gpus', type=int, default=1 if USE_GPU else 0)
+    parser.add_argument('--accelerator', type=str, default=None)
+    parser.add_argument('--devices', type=int, default=1)
+    parser.add_argument('--precision', default=None)
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
     parser.add_argument('--pretrain', action='store_true', default=False)
     parser.add_argument('--score', type=str, default=None)
+    parser.add_argument('--cache', action='store_true', default=False)
 
     print_log('[script]', ' '.join(sys.argv))
 
     hparams = parser.parse_args()  # hparams になる
     if hparams.pretrain == True:
-        hparams.batch_size = 1024
+        if hparams.step_batch_size > 0:
+            # our batches contain roughly 2^16 = 65,536 tokens
+            acc_steps = 2**16 // (hparams.max_length * hparams.step_batch_size)
+            hparams.batch_size = acc_steps * hparams.step_batch_size
         hparams.solver = 'adafactor'
+        # This setting is independent of the "precision" setting in the Trainer.
         torch.set_float32_matmul_precision('medium')
+        if hparams.precision is None:
+            hparams.precision = 'bf16-mixed'  # A100
 
     if not isatty():
         disable_progress_bar()
 
+    if not hparams.cache:
+        disable_caching()
+
     # デフォルトがNoneのときは
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
+    if hparams.precision is None:
+        hparams.precision = 32
     if hparams.source_max_length is None:
         hparams.source_max_length = hparams.max_length
     if hparams.target_max_length is None:
@@ -635,6 +651,9 @@ def main():
         print_log('[train]', train_files)
         model.fit(train_files,
                   random_seed=hparams.seed,
+                  accelerator=hparams.accelerator,
+                  devices=hparams.devices,
+                  precision=hparams.precision,
                   max_epochs=hparams.max_epochs,
                   max_hours=hparams.max_hours,
                   early_stopping=hparams.early_stopping,
