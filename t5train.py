@@ -1,7 +1,6 @@
 # import dill as pickle
 # import glob
 import time
-from datasets.utils import disable_progress_bar
 from transformers import default_data_collator
 import os
 import urllib.request
@@ -24,7 +23,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import datasets
-from datasets import load_dataset, disable_caching
+from datasets import load_dataset, load_from_disk, disable_caching
+from datasets.utils import disable_progress_bar
 datasets.utils.logging.set_verbosity_warning()
 
 try:
@@ -107,6 +107,20 @@ def url_is_alive(url: str):
         return False
 
 
+def check_saved_path(filename):
+    if '/' in filename:
+        _, _, filename = filename.rpartition('/')
+    saved = filename.replace('.gz', '').replace('.jsonl', '_saved')
+    return saved, os.path.isdir(saved)
+
+
+def check_saved_path(filename):
+    if '/' in filename:
+        _, _, filename = filename.rpartition('/')
+    saved = filename.replace('.gz', '').replace('.jsonl', '_saved')
+    return saved, os.path.isdir(saved)
+
+
 class T5DataModule(pl.LightningDataModule):
     def __init__(self, data_source: str,
                  transform=transform_nop,
@@ -149,6 +163,15 @@ class T5DataModule(pl.LightningDataModule):
         return []
 
     def load(self, data_source, split='train', transform=transform_nop):
+        if isinstance(data_source, str) and split == 'train':
+            # 保存済みの前処理を活用する
+            saved_path, has_saved = check_saved_path(data_source)
+            if has_saved:
+                return load_from_disk(saved_path)
+            ds = ds.map(
+                transform, num_proc=4).with_format('torch')
+            ds.save_to_disk(saved_path)
+            return ds
         if isinstance(data_source, (str, list, tuple, dict)):
             file_type, kwargs = self.file_type(data_source)
             ds = load_dataset(file_type,
