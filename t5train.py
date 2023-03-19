@@ -538,7 +538,7 @@ class T5ModelTrainer(object):
         USE_GPU = torch.cuda.is_available()
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
         if USE_GPU:
-            debug_print('testing with gpu', output_file)
+            debug_print('testing with gpu', test_file)
             model.cuda()
         if '[' in test_file:
             test_file, _, split = test_file.partition('[')
