@@ -102,12 +102,14 @@ def calc_hmean(results, beta=1.0, print_fn=print):
                 value = 100.0 * sum(value)/len(value)
             else:
                 value = ''
-                if f'{key}_p' in results and f'{key}_r' in results:
-                    pval = results[f'{key}_p']
-                    rval = results[f'{key}_r']
-                    if isinstance(pval, float) and isinstance(rval, float):
-                        value = results[key] = harmonic_mean(pval, rval, beta)
             results[key] = value
+    for key in results:
+        if f'{key}_p' in results and f'{key}_r' in results:
+            pval = results[f'{key}_p']
+            rval = results[f'{key}_r']
+            if isinstance(pval, float) and isinstance(rval, float):
+                value = results[key] = harmonic_mean(pval, rval, beta)
+    for key in results:
         if isinstance(value, float):
             print_fn(f'{key}: {value:.3f}')
         else:
