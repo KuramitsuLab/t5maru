@@ -1,11 +1,9 @@
 from collections import Counter
-import sys
 import json
 from difflib import SequenceMatcher
 import black
 import re
-import Levenshtein
-from .bleu import sentence_bleu, SmoothingFunction
+from .score import count_score, count_char, count_f1, count_blue
 
 # 前処理
 
@@ -180,82 +178,10 @@ def tokenize(s: str, remove_space=True, remove_docstring=True, remove_comment=Tr
     return tokens
 
 
-def record_score(key: str, score: float, results=None):
-    if results:
-        if key not in results:
-            results[key] = []
-        if score is not None:
-            results[key].append(score)
-
-
-def calc_LCS(ref, pred, results):
-    if len(ref) > 0 and len(pred) > 0:
-        match = SequenceMatcher(None, ref, pred).find_longest_match(
-            0, len(ref), 0, len(pred))
-        # Recall: refの共通部分文字列を、どれだけ当てられたか
-        record_score('LCS_r', match.size/len(pred), results)
-        # Precision: predの共通部分文字列を、どれだけ含んでいるか？
-        record_score('LCS_p', match.size/len(ref), results)
-        # 調和平均 F1
-        record_score('LCS', match.size*2/(len(pred)+len(ref)), results)
-
 # https://qiita.com/icoxfog417/items/65faecbbe27d3c53d212
 
 
-def calc_rouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
-    # 識別子だけ取り出す
-    ref_ids = set(t for t in ref_tokens if filter_fn(t))
-    pred_ids = set(t for t in pred_tokens if filter_fn(t))
-    recall = None
-    precision = None
-    if len(ref_ids) > 0:
-        # Recall: refの単語を、どれだけ当てられたか
-        recall = 0
-        for ref_id in list(ref_ids):
-            if ref_id in pred_ids:
-                recall += 1
-        recall = recall/len(ref_ids)
-        record_score(f'{base}_r', recall, results)
-    else:
-        record_score(f'{base}_r', None, results)
-    if len(pred_ids) > 0:
-        # Precision: 生成した要約が、どれだけ人手の要約に含まれているか
-        precision = 0
-        for pred_id in list(pred_ids):
-            if pred_id in ref_ids:
-                precision += 1
-        precision = precision/len(pred_ids)
-        record_score(f'{base}_p', precision, results)
-    else:
-        record_score(f'{base}_p', None, results)
-    record_score(f'{base}', None, results)
-
-
-def calc_crouge(base, ref_tokens, pred_tokens, filter_fn, results=None):
-    # 識別子だけ取り出す
-    refc = Counter(t for t in ref_tokens if filter_fn(t))
-    predc = Counter(t for t in pred_tokens if filter_fn(t))
-    recall = None
-    precision = None
-    if len(refc) > 0:
-        # Recall: refの単語を、どれだけ当てられたか
-        recall = 0
-        for t in list(refc):
-            recall += max(1.0 - (refc[t]-predc[t])/refc[t], 0.0)
-        recall = recall/len(refc)
-        record_score(f'{base}_r', recall, results)
-    else:
-        record_score(f'{base}_r', None, results)
-    if len(predc) > 0:
-        # Precision: 生成した要約が、どれだけ人手の要約に含まれているか
-        precision = 0
-        for t in list(predc):
-            precision += max(1.0 - abs(predc[t]-refc[t])/predc[t], 0.0)
-        precision = precision/len(predc)
-        record_score(f'{base}_p', precision, results)
-    else:
-        record_score(f'{base}_p', None, results)
-    record_score(f'{base}', None, results)
+# CodeRouge
 
 
 OP_SET = set(
@@ -281,51 +207,41 @@ def is_isoperator(t: str):
     return t in OP_SET
 
 
-def calc_CodeROUGE(ref_tokens, pred_tokens, results=None):
-    calc_crouge('CROUGE-1', ref_tokens, pred_tokens, lambda t: True, results)
-    calc_crouge('CROUGE-I', ref_tokens, pred_tokens, is_isidentifier, results)
-    calc_crouge('CROUGE-NUM', ref_tokens, pred_tokens, is_isnumber, results)
-    calc_crouge('CROUGE-STR', ref_tokens, pred_tokens, is_isstring, results)
-    calc_crouge('CROUGE-OP', ref_tokens, pred_tokens, is_isoperator, results)
-
-# BLEU
+def count_crouge(results, trefs, tpreds):
+    count_f1(results, trefs, tpreds, 'CROUGE-1', lambda t: True, )
+    count_f1(results, trefs, tpreds, 'CROUGE-I', is_isidentifier)
+    count_f1(results, trefs, tpreds, 'CROUGE-NUM', is_isnumber)
+    count_f1(results,  trefs, tpreds, 'CROUGE-STR', is_isstring)
+    count_f1(results, trefs, tpreds, 'CROUGE-OP', is_isoperator)
 
 
-def calc_blue(ref_tokens, pred_tokens, results=None):
-    smoother = SmoothingFunction()
-    ref_tokens_list = [ref_tokens]
-    # score = corpus_bleu(ref_tokens_list, pred_tokens)
-    # record_score('BLEU', score, results)
-    try:
-        score = sentence_bleu(ref_tokens_list, pred_tokens)
-        record_score('BLEU', score, results)
-    except ZeroDivisionError as e:
-        print('ERR BLEU', e, ref_tokens, pred_tokens)
-    try:
-        b2 = sentence_bleu(ref_tokens_list, pred_tokens,
-                           smoothing_function=smoother.method2)
-        record_score('BLEU2', b2, results)
-    except ZeroDivisionError as e:
-        print('ERR BLEU2', e, ref_tokens, pred_tokens)
-    try:
-        b4 = sentence_bleu(ref_tokens_list, pred_tokens,
-                           smoothing_function=smoother.method4)
-        record_score('BLEU4', b4, results)
-    except ZeroDivisionError as e:
-        print('ERR BLEU4', e, ref_tokens, pred_tokens)
-
-
-def calc_PythonCode(refs, preds, results=None):
+def eval_py(results, refs, preds):
     for ref, pred in zip(refs, preds):
         ref, pred, c = normalize(ref, pred)
-        record_score('SyntaxPass', c, results)
-        record_score('ExactMatch', 1.0 if ref == pred else 0.0, results)
-        record_score('EditSim', Levenshtein.ratio(ref, pred), results)
-        calc_LCS(ref, pred, results)
-        ref_tokens = tokenize(ref)
-        pred_tokens = tokenize(pred)
-        calc_CodeROUGE(ref_tokens, pred_tokens, results)
-        calc_blue(ref_tokens, pred_tokens, results)
+        count_score(results, 'SyntaxPass', c)
+        count_char(results, ref, pred)
+        trefs = tokenize(ref)
+        tpreds = tokenize(pred)
+        count_blue(results, trefs, tpreds)
+        count_crouge(results, trefs, tpreds)
+
+
+def eval_en(results, refs, preds):
+    for ref, pred in zip(refs, preds):
+        ref, pred, c = normalize(ref, pred)
+        count_char(results, ref, pred)
+        trefs = ref.split()
+        tpreds = pred.split()
+        count_blue(results, trefs, tpreds)
+
+
+def eval_ja(results, refs, preds):
+    for ref, pred in zip(refs, preds):
+        ref, pred, c = normalize(ref, pred)
+        count_char(results, ref, pred)
+        trefs = ref.split()
+        tpreds = pred.split()
+        count_blue(results, trefs, tpreds)
 
 
 def get_filename(filepath):
@@ -333,10 +249,6 @@ def get_filename(filepath):
         _, _, filename = filepath.rpartition('/')
         return filename
     return filepath
-
-
-def harmonic_mean(r, p, beta=1.0):
-    return ((1+beta**2)*r*p)/(r+(beta**2)*p)
 
 
 def score_py(refs, preds, outputfile, testfile='', model_id='', print_fn=print):
@@ -397,6 +309,3 @@ def main_calc(filepath, outputfile=None):
 
 if __name__ == '__main__':
     print(tokenize("_結果_ in _リスト_"))
-    # for file in sys.argv[1:]:
-    #     if file.endswith('.jsonl'):
-    #         main_calc(file)

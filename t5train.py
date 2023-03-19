@@ -163,15 +163,15 @@ class T5DataModule(pl.LightningDataModule):
         return []
 
     def load(self, data_source, split='train', transform=transform_nop):
-        if isinstance(data_source, str) and split == 'train':
-            # 保存済みの前処理を活用する
-            saved_path, has_saved = check_saved_path(data_source)
-            if has_saved:
-                return load_from_disk(saved_path)
-            ds = ds.map(
-                transform, num_proc=4).with_format('torch')
-            ds.save_to_disk(saved_path)
-            return ds
+        # if isinstance(data_source, str) and split == 'train':
+        #     # 保存済みの前処理を活用する
+        #     saved_path, has_saved = check_saved_path(data_source)
+        #     if has_saved:
+        #         return load_from_disk(saved_path)
+        #     ds = ds.map(
+        #         transform, num_proc=4).with_format('torch')
+        #     ds.save_to_disk(saved_path)
+        #     return ds
         if isinstance(data_source, (str, list, tuple, dict)):
             file_type, kwargs = self.file_type(data_source)
             ds = load_dataset(file_type,
