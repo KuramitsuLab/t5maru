@@ -111,7 +111,11 @@ def count_rouge(results, trefs, tpreds, lang=None):
 
 
 def harmonic_mean(r, p, beta=1.0):
-    return ((1+beta**2)*r*p)/(r+(beta**2)*p)
+    try:
+        return ((1+beta**2)*r*p)/(r+(beta**2)*p)
+    except ZeroDivisionError as e:
+        print(e, r, p)
+        return ''
 
 
 def calc_hmean(results, beta=1.0, print_fn=print):
