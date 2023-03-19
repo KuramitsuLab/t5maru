@@ -33,10 +33,10 @@ def main():
     for file in hparams.files:
         refs, preds = read_jsonl(file, hparams.ref, hparams.pred)
         results = {
-            'model': hparams.model_path,
-            'tested': file,
-            'desc': hparams.desc,
-            'count': len(refs),
+            'Model': hparams.model_path,
+            'Tested': file,
+            'Desc': hparams.desc,
+            'Count': len(refs),
         }
         eval_score(results, refs, preds, hparams.score, file)
         if hparams.output is None:

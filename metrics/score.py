@@ -2,6 +2,7 @@ import json
 from difflib import SequenceMatcher
 import Levenshtein
 from .bleu import sentence_bleu, SmoothingFunction
+from sumeval.metrics.rouge import RougeCalculator
 
 
 def remove_prefix_tag(s):
@@ -66,7 +67,7 @@ def count_char(results, ref, pred):
 
 
 def count_blue(results, trefs, tpreds):
-    count_f1(results, trefs, tpreds, 'F1_Token')
+    count_f1(results, trefs, tpreds, 'F1(token)')
     smoother = SmoothingFunction()
     trefs_list = [trefs]
     # score = corpus_bleu(trefs_list, tpreds)
@@ -88,6 +89,24 @@ def count_blue(results, trefs, tpreds):
     #     count_score('BLEU4', b4, results)
     # except ZeroDivisionError as e:
     #     print('ERR BLEU4', e, trefs, tpreds)
+
+
+def count_rouge(results, trefs, tpreds, lang=None):
+    ref = ' '.join(trefs)
+    pred = ' '.join(tpreds)
+    if lang == 'en':
+        rouge = RougeCalculator(stopwords=True, lang='en')
+    else:
+        rouge = RougeCalculator(stopwords=False, lang='en')
+
+    rouge_1 = rouge.rouge_n(summary=pred, references=ref, n=1)
+    count_score(results, 'ROUGE-1', rouge_1)
+
+    rouge_2 = rouge.rouge_n(summary=pred, references=ref, n=2)
+    count_score(results, 'ROUGE-2', rouge_2)
+
+    rouge_l = rouge.rouge_l(summary=pred, references=ref)
+    count_score(results, 'ROUGE-L', rouge_l)
 
 
 def harmonic_mean(r, p, beta=1.0):
@@ -126,26 +145,3 @@ def read_jsonl(filename, ref='out', pred='pred'):
             refs.append(data[ref])
             preds.append(data[pred])
     return refs, preds
-
-
-def setup():
-    import argparse
-    # ハイパーパラメータの読み込み  何も書かなければ、デフォルト値 default
-    # python3 finetune.py --batch_size 64
-    parser = argparse.ArgumentParser(description='t5train script')
-    parser.add_argument('files', type=str, nargs='+', help='jsonl files')
-    parser.add_argument('--model_path', default='kkuramitsu/mt5np_mini12L')
-    parser.add_argument('--output', default=None)
-    parser.add_argument('--ref', default='out')
-    parser.add_argument('--pred', default='pred')
-
-    hparams = parser.parse_args()  # hparams になる
-    return hparams
-
-
-def main(filepath, outputfile=None):
-    hparams = setup()
-    for filename in hparams.files:
-        refs, preds = read_jsonl(filepath, ref=hparams.ref, pred=hparams.pred)
-        outputfile = filepath.replace('.jsonl', '.csv')
-        score_reg(refs, preds, outputfile, filepath)

@@ -71,25 +71,27 @@ def eval_class(results, refs, preds, top_k=10, tokenize=ctokenize):
     cats = Counter()
     for ref in refs:
         cats.update(categories(ref))
+
+    for ref, pred in zip(refs, preds):
+        count_char(results, refs, preds)
+        trefs, tpreds = tokenize(ref, pred)
+        count_f1(results, trefs, tpreds)
+
     if top_k > 1:
         for k, c in cats.most_common(top_k):
             results[f'{k}'] = []
             results[f'{k}_r'] = []
             results[f'{k}_p'] = []
             results[f'{k}_c'] = c
-
-    for ref, pred in zip(refs, preds):
-        count_char(results, refs, preds)
-        trefs, tpreds = tokenize(ref, pred)
-        count_f1(results, trefs, tpreds)
-        cat_refs = categories(ref)
-        cat_preds = categories(pred)
-        for k, c in cats.most_common(top_k):
-            if k in cat_refs:
-                count_score(results, f'{k}_r', 1 if k in cat_preds else 0)
-        for cp in cat_preds:
-            if cp in cats:
-                count_score(results, f'{k}_p', 1 if k in cat_refs else 0)
-                count_score(results, f'otherwise', 0)
-            else:
-                count_score(results, f'otherwise', 1)
+        for ref, pred in zip(refs, preds):
+            cat_refs = categories(ref)
+            cat_preds = categories(pred)
+            for k, c in cats.most_common(top_k):
+                if k in cat_refs:
+                    count_score(results, f'{k}_r', 1 if k in cat_preds else 0)
+            for cp in cat_preds:
+                if cp in cats:
+                    count_score(results, f'{k}_p', 1 if k in cat_refs else 0)
+                    count_score(results, f'otherwise', 0)
+                else:
+                    count_score(results, f'otherwise', 1)

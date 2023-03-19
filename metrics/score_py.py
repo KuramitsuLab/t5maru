@@ -1,9 +1,11 @@
+from sumeval.metrics.rouge import RougeCalculator
+from janome.tokenizer import Tokenizer
 from collections import Counter
 import json
 from difflib import SequenceMatcher
 import black
 import re
-from .score import count_score, count_char, count_f1, count_blue
+from .score import count_score, count_char, count_f1, count_blue, count_rouge
 
 # 前処理
 
@@ -223,89 +225,59 @@ def eval_py(results, refs, preds):
         trefs = tokenize(ref)
         tpreds = tokenize(pred)
         count_blue(results, trefs, tpreds)
+        count_rouge(results, trefs, tpreds, lang='py')
         count_crouge(results, trefs, tpreds)
 
 
 def eval_en(results, refs, preds):
     for ref, pred in zip(refs, preds):
-        ref, pred, c = normalize(ref, pred)
         count_char(results, ref, pred)
         trefs = ref.split()
         tpreds = pred.split()
         count_blue(results, trefs, tpreds)
+        count_rouge(results, trefs, tpreds, lang='en')
+
+# 日本語
+
+# Python: 正規表現による簡易版形態素解析
+# https://qiita.com/kinoshita_yuri/items/e15f143981f1616994ed
+
+
+pJA = re.compile(r"/|[A-Z]+|[a-z]+|[ァ-ンー]+|[ぁ-ん-]+|[ァ-ヶ]+|[一-龍]+|[。、]|/")
+
+
+def tokenize_ja(text):
+    text_m = []
+    m = pJA.findall(text)
+    for row in m:
+        if re.compile(r'^[あ-ん]+$').fullmatch(row):
+            if row[0] in 'はがのにへともでを':
+                prefix = row[0]
+                token = row[1:]
+                text_m.append(prefix)
+                if (len(token) > 0):
+                    text_m.append(token)
+            elif row[-2:] in 'のでからまで':
+                token = row[0:-2]
+                suffix = row[-2:]
+                text_m.append(token)
+                text_m.append(suffix)
+            elif row[-1:] in 'もはがでを':
+                token = row[0:-1]
+                suffix = row[-1:]
+                text_m.append(token)
+                text_m.append(suffix)
+            else:
+                text_m.append(row)
+        else:
+            text_m.append(row)
+    return text_m
 
 
 def eval_ja(results, refs, preds):
     for ref, pred in zip(refs, preds):
-        ref, pred, c = normalize(ref, pred)
         count_char(results, ref, pred)
-        trefs = ref.split()
-        tpreds = pred.split()
+        trefs = tokenize_ja(ref)
+        tpreds = tokenize_ja(pred)
         count_blue(results, trefs, tpreds)
-
-
-def get_filename(filepath):
-    if '/' in filepath:
-        _, _, filename = filepath.rpartition('/')
-        return filename
-    return filepath
-
-
-def score_py(refs, preds, outputfile, testfile='', model_id='', print_fn=print):
-    results = {
-        'Model': model_id,
-        'Test': get_filename(testfile),
-        'Total': len(refs),
-    }
-    calc_PythonCode(refs, preds, results)
-    for key in results:
-        value = results[key]
-        if isinstance(value, list):
-            if len(value) > 0:
-                value = 100.0 * sum(value)/len(value)
-            else:
-                value = ''
-                if f'{key}_p' in results:
-                    pval = results[f'{key}_p']
-                    rval = results[f'{key}_r']
-                    if isinstance(pval, float) and isinstance(rval, float):
-                        value = results[key] = harmonic_mean(pval, rval)
-            results[key] = value
-        if isinstance(value, float):
-            print_fn(f'{key}: {value:.3f}')
-        else:
-            print_fn(f'{key}: {value}')
-    if outputfile:
-        print_fn('[writing]', outputfile)
-        with open(outputfile, 'w') as w:
-            for key in results:
-                print(f'{key},', end='', file=w)
-            print(file=w)
-            for key, value in results.items():
-                if isinstance(value, float):
-                    print(f'{value:.3f},', end='', file=w)
-                else:
-                    print(f'{value},', end='', file=w)
-            print(file=w)
-
-
-def read_jsonl(filename):
-    refs = []
-    preds = []
-    with open(filename) as f:
-        for line in f.readlines():
-            data = json.loads(line)
-            refs.append(data['out'])
-            preds.append(data['pred'])
-    return refs, preds
-
-
-def main_calc(filepath, outputfile=None):
-    refs, preds = read_jsonl(filepath)
-    if outputfile is None:
-        outputfile = filepath.replace('.jsonl', '.csv')
-    score_py(refs, preds, outputfile, filepath)
-
-
-if __name__ == '__main__':
-    print(tokenize("_結果_ in _リスト_"))
+        count_rouge(results, trefs, tpreds, lang='ja')
