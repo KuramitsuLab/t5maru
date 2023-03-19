@@ -4,6 +4,13 @@ import Levenshtein
 from .bleu import sentence_bleu, SmoothingFunction
 
 
+def remove_prefix_tag(s):
+    s = s.replace('<nl>', '\n').replace('<tag>', '    ')
+    if s.startswith('<') and '>' in s:
+        _, _, s = ref.partition('<')
+    return s
+
+
 def count_score(results: dict, key: str, score: float):
     if key not in results:
         results[key] = []
@@ -66,7 +73,7 @@ def count_blue(results, trefs, tpreds):
     # count_score('BLEU', score, results)
     try:
         score = sentence_bleu(trefs_list, tpreds)
-        count_score('BLEU', score, results)
+        count_score(results, 'BLEU', score)
     except ZeroDivisionError as e:
         print('ERR BLEU', e, trefs, tpreds)
     # try:
