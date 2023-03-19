@@ -8,11 +8,11 @@ from sumeval.metrics.rouge import RougeCalculator
 def remove_prefix_tag(s):
     s = s.replace('<nl>', '\n').replace('<tag>', '    ')
     if s.startswith('<') and '>' in s:
-        _, _, s = ref.partition('<')
+        _, _, s = s.partition('<')
     return s
 
 
-def count_score(results: dict, key: str, score: float):
+def count_score(results: dict, key: str, score: float = None):
     if key not in results:
         results[key] = []
     if score is not None:
@@ -20,6 +20,7 @@ def count_score(results: dict, key: str, score: float):
 
 
 def count_lcs(results, ref, pred):
+    count_score(results, 'LCS')
     if len(ref) > 0 and len(pred) > 0:
         match = SequenceMatcher(None, ref, pred).find_longest_match(
             0, len(ref), 0, len(pred))

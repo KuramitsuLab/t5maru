@@ -22,19 +22,13 @@ from transformers.optimization import Adafactor, AdafactorSchedule
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+from .metrics import eval_score, write_score_csv
+
 import datasets
 from datasets import load_dataset, load_from_disk, disable_caching
 from datasets.utils import disable_progress_bar
 datasets.utils.logging.set_verbosity_warning()
 
-try:
-    from .metrics import calc_score, get_filename
-except:
-    def get_filename(s):
-        return s
-
-    def calc_score(*args, **kwargs):
-        pass
 
 # https://www.kaggle.com/code/noriyukipy/text-classification-dataloader-from-datasets
 
@@ -538,33 +532,44 @@ class T5ModelTrainer(object):
         file = file.replace('.gz', '')
         if not file.endswith('.jsonl'):
             file = file+'.jsonl'
-        return file
+        return file.replace('.jsonl', '_tested.jsonl')
 
     def predict(self, test_file, split='train', streaming=False):
+        USE_GPU = torch.cuda.is_available()
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
+        if USE_GPU:
+            debug_print('testing with gpu', output_file)
+            model.cuda()
         if '[' in test_file:
             test_file, _, split = test_file.partition('[')
             split = f'train[{split}'
-        batch_size = 1 if self.step_batch_size < 1 else self.step_batch_size
         data = T5DataModule(test_file,
                             transform=self.transform, split=split,
-                            batch_size=batch_size,
+                            batch_size=self.step_batch_size,
                             num_of_workers=self.num_of_workers,
                             streaming=streaming)
         if os.path.isdir(self.model_path):
-            output_file = f'{self.model_path}/pred_{self.extract_filename(test_file)}'
+            output_file = f'{self.model_path}/{self.extract_filename(test_file)}'
         else:
-            output_file = f'pred_{self.extract_filename(test_file)}'
+            output_file = f'{self.extract_filename(test_file)}'
         data.setup('test')
         results = {}
         dataloader = data.test_dataloader()
         for batch in dataloader:
-            outputs = model.generate(
-                input_ids=batch['source_ids'],
-                attention_mask=batch['source_mask'],
-                max_length=self.target_max_length,
-                return_dict_in_generate=True,
-                output_scores=True)
+            if USE_GPU:
+                outputs = model.generate(
+                    input_ids=batch['source_ids'].cuda(),
+                    attention_mask=batch['source_mask'].cuda(),
+                    max_length=self.target_max_length,
+                    return_dict_in_generate=True,
+                    output_scores=True)
+            else:
+                outputs = model.generate(
+                    input_ids=batch['source_ids'],
+                    attention_mask=batch['source_mask'],
+                    max_length=self.target_max_length,
+                    return_dict_in_generate=True,
+                    output_scores=True)
             preds = [self.tokenizer.decode(ids, skip_special_tokens=True,
                                            clean_up_tokenization_spaces=False) for ids in outputs.sequences]
             for key in batch.keys():
@@ -620,7 +625,12 @@ def setup():
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
     parser.add_argument('--pretrain', action='store_true', default=False)
+
     parser.add_argument('--score', type=str, default=None)
+    parser.add_argument('--desc', type=str, default='')
+    parser.add_argument('--top_k', type=int, default=0)
+    parser.add_argument('--score_file', type=str, default=None)
+
     parser.add_argument('--cache', action='store_true', default=False)
 
     print_log('[script]', ' '.join(sys.argv))
@@ -693,12 +703,26 @@ def main():
         for test_file in test_files:
             results = model.predict(test_file)
             if hparams.score and 'out' in results and 'pred' in results:
-                outfile = get_filename(test_file).replace(
-                    '.jsonl', '.csv').replace('.gz', '')
-                outfile = f'{hparams.output_path}/{outfile}'
-                calc_score(results['out'], results['pred'],
-                           outfile, hparams.score, test_file,
-                           hparams.model_path, print_fn=print_log)
+                calc_score(hparams, results['out'], results['pred'],
+                           hparams.output_path, test_file)
+
+
+def calc_score(hparams, refs, preds, model_path, test_file):
+    results = {
+        'Model': model_path,
+        'Tested': test_file,
+        'Desc': hparams.desc,
+        'Count': len(refs),
+    }
+    eval_score(results, refs, preds, hparams.score,
+               top_k=hparams.top_k, print_fn=print_log)
+    score_file = hparams.score_file
+    if score_file is None:
+        score_file = test_file.replace('.jsonl', '.csv').replace('.gz', '')
+        if '/' in score_file:
+            _, _, score_file = score_file.rpartition('/')
+        score_file = f'{model_path}/{score_file}'
+    write_score_csv(results, score_file)
 
 
 def main_test():
@@ -708,16 +732,14 @@ def main_test():
         batch_size=hparams.batch_size,
         max_length=hparams.source_max_length,
         target_max_length=hparams.target_max_length,
-        step_batch_size=hparams.step_batch_size,
+        step_batch_size=max(hparams.step_batch_size, hparams.batch_size),
         num_of_workers=hparams.num_workers)
     for test_file in hparams.files:
         model.predict(test_file)
         results = model.predict(test_file)
         if hparams.score and 'out' in results and 'pred' in results:
-            outfile = get_filename(test_file).replace('.jsonl', '.csv')
-            outfile = f'{hparams.output_path}/{outfile}'
-            calc_score(results['out'], results['pred'],
-                       outfile, hparams.score, test_file, hparams.model_path)
+            calc_score(hparams, results['out'], results['pred'],
+                       hparams.model_path, test_file)
 
 
 def main2():

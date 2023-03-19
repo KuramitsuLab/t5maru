@@ -3,14 +3,14 @@ from .score_reg import check_reg, eval_reg, eval_class
 from .score_py import eval_py, eval_ja, eval_en
 
 
-def eval_score(results: dict, refs: list, preds: list, score='auto', beta=1.0, top_k=5, print_fn=print):
+def eval_score(results: dict, refs: list, preds: list, score='auto', top_k=0, print_fn=print):
     refs = [remove_prefix_tag(s) for s in refs]
     preds = [remove_prefix_tag(s) for s in preds]
-
     if score == 'auto':
         if check_reg(refs):
             score = 'reg'
         score = 'py'
+    results['Score'] = score
     if score == 'reg':
         eval_reg(results, refs, preds)
     elif score == 'class':

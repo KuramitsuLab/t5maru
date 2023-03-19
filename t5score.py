@@ -38,7 +38,7 @@ def main():
             'Desc': hparams.desc,
             'Count': len(refs),
         }
-        eval_score(results, refs, preds, hparams.score, file)
+        eval_score(results, refs, preds, hparams.score, top_k=hparams.top_k)
         if hparams.output is None:
             hparams.output = file.replace('.jsonl', '.csv').replace('.gz', '')
         write_score_csv(results, hparams.output)
