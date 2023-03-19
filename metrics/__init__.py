@@ -21,7 +21,7 @@ def eval_score(results: dict, refs: list, preds: list, score='auto', top_k=0, pr
         eval_ja(results, refs, preds)
     else:
         eval_en(results, refs, preds)
-    calc_hmean(results, beta=beta, print_fn=print_fn)
+    calc_hmean(results, print_fn=print_fn)
     return results
 
 
