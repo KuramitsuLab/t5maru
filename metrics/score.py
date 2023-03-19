@@ -108,7 +108,7 @@ def calc_hmean(results, beta=1.0, print_fn=print):
             pval = results[f'{key}_p']
             rval = results[f'{key}_r']
             if isinstance(pval, float) and isinstance(rval, float):
-                value = results[key] = harmonic_mean(pval, rval, beta)
+                value = results[key] = harmonic_mean(pval, rval, 1.0)
     for key in results:
         if isinstance(value, float):
             print_fn(f'{key}: {value:.3f}')
