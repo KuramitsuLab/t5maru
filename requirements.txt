@@ -8,7 +8,7 @@ Levenshtein
 sumeval
 numpy
 pandas
-sklearn
+scikit-learn
 scipy
 nltk
 janome
