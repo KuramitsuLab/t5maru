@@ -6,3 +6,8 @@ pytorch_lightning
 black 
 Levenshtein
 sumeval
+numpy
+pandas
+scipy
+nltk
+janome
