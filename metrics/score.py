@@ -60,7 +60,7 @@ def count_char(results, ref, pred):
     count_score(results, 'ExactMatch', 1.0 if ref == pred else 0.0)
     count_score(results, 'EditSim', Levenshtein.ratio(ref, pred))
     count_lcs(results, ref, pred)
-    count_f1(results, list(ref), list(pred), 'F1_Token')
+    count_f1(results, list(ref), list(pred), 'F1(char)')
 
 # BLEU
 
@@ -108,8 +108,9 @@ def calc_hmean(results, beta=1.0, print_fn=print):
             pval = results[f'{key}_p']
             rval = results[f'{key}_r']
             if isinstance(pval, float) and isinstance(rval, float):
-                value = results[key] = harmonic_mean(pval, rval, 1.0)
+                results[key] = harmonic_mean(pval, rval, 1.0)
     for key in results:
+        value = results[key]
         if isinstance(value, float):
             print_fn(f'{key}: {value:.3f}')
         else:
