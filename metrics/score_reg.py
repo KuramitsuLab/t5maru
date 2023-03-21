@@ -73,11 +73,12 @@ def eval_class(results, refs, preds, top_k=10, tokenize=ctokenize):
         cats.update(categories(ref))
 
     for ref, pred in zip(refs, preds):
-        count_char(results, refs, preds)
+        count_char(results, ref, pred)
         trefs, tpreds = tokenize(ref, pred)
         count_f1(results, trefs, tpreds)
 
     if top_k > 1:
+        print(cats)
         for k, c in cats.most_common(top_k):
             results[f'{k}'] = []
             results[f'{k}_r'] = []
