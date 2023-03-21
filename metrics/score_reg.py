@@ -8,9 +8,9 @@ from .score import count_score, count_char, count_f1
 
 def tofloat(s, default=0.0):
     try:
-        return float(s), 1
+        return float(s), 0
     except:
-        return default, 0
+        return default, 1
 
 
 def check_reg(refs):
