@@ -35,7 +35,7 @@ def eval_reg(results, refs, preds):
         frefs.append(r)
         fpreds.append(p)
         count_score(results, 'otherwise', c)
-    y_test = np.array(fpreds)
+    y_test = np.array(frefs)
     y_pred = np.array(fpreds)
     results['MSE'] = mean_squared_error(y_test, y_pred)
     results['RMSE'] = mean_squared_error(y_test, y_pred, squared=False)
