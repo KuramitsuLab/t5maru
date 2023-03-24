@@ -14,7 +14,7 @@ def _requires_from_file(filename):
 
 
 setup(name="trainmaru",
-      version="0.0.8",
+      version="0.0.9",
       license='MIT',
       author='Kimio Kuramitsu',
       description="Deep Learning",
@@ -29,6 +29,9 @@ setup(name="trainmaru",
               "t5train=trainmaru.t5train:main",
               "t5test=trainmaru.t5train:main_test",
               "t5score=trainmaru.t5score:main",
+              "t5cp=trainmaru.t5utils:main_cp",
+              "t5new=trainmaru.t5utils:main_new",
+              "t5len=trainmaru.t5utils:main_len",
               "t5dump=trainmaru.t5dump:main",
           ]
       },
