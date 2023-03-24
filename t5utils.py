@@ -53,6 +53,10 @@ def setup_new():
         hparams.tokenizer_path = hparams.model_path
     return hparams
 
+# モデルのパラメータ数を数える
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
 def main_new():
     hparams = setup_new()
     tokenizer = AutoTokenizer.from_pretrained(hparams.tokenizer_path, use_fast=False)
@@ -79,6 +83,7 @@ def main_new():
     model.save_pretrained(self.output_path)
     set_logfile(self.output_path)
     print_log('[model.config]', config)
+    print_log('[model.parameters]', count_parameters(model))
 
 
 ##
