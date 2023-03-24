@@ -7,7 +7,7 @@ def set_logfile(output_path):
     LOGFILE = f'{output_path}/train_log.txt'
 
 
-def t5print(*args, **kwargs):
+def print_log(*args, **kwargs):
     sep = kwargs.get('sep', ' ')
     text = sep.join(str(a) for a in args)
     try:
