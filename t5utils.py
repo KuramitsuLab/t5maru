@@ -28,9 +28,9 @@ def main_cp():
     hparams = setup_cp()
     tokenizer = AutoTokenizer.from_pretrained(hparams.tokenizer_path, use_fast=False)
     model = AutoModelForSeq2SeqLM.from_pretrained(hparams.model_path)
-    tokenizer.save_pretrained(self.output_path)
-    model.save_pretrained(self.output_path)
-    set_logfile(self.output_path)
+    tokenizer.save_pretrained(hparams.output_path)
+    model.save_pretrained(hparams.output_path)
+    set_logfile(hparams.output_path)
     print_log('[source]', hparams.model_path, hparams.tokenizer_path)
 
 def setup_new():
@@ -79,9 +79,9 @@ def main_new():
     if hparams.dropout_rate is not None:
         config.dropout_rate = hparams.dropout_rate
     model = MT5ForConditionalGeneration(config)
-    tokenizer.save_pretrained(self.output_path)
-    model.save_pretrained(self.output_path)
-    set_logfile(self.output_path)
+    tokenizer.save_pretrained(hparams.output_path)
+    model.save_pretrained(hparams.output_path)
+    set_logfile(hparams.output_path)
     print_log('[model.config]', config)
     print_log('[model.parameters]', count_parameters(model))
 
