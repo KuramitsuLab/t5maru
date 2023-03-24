@@ -25,6 +25,7 @@ def setup_cp():
     return hparams
 
 def main_cp():
+    hparams = setup_cp()
     tokenizer = AutoTokenizer.from_pretrained(hparams.tokenizer_path, use_fast=False)
     model = AutoModelForSeq2SeqLM.from_pretrained(hparams.model_path)
     tokenizer.save_pretrained(self.output_path)
@@ -53,6 +54,7 @@ def setup_new():
     return hparams
 
 def main_new():
+    hparams = setup_new()
     tokenizer = AutoTokenizer.from_pretrained(hparams.tokenizer_path, use_fast=False)
     model = AutoModelForSeq2SeqLM.from_pretrained(hparams.model_path)
     config = model.config
@@ -99,7 +101,7 @@ def setup_len():
 
 
 def main_len():
-    hparams = setup()
+    hparams = setup_len()
     tokenizer = AutoTokenizer.from_pretrained(
         hparams.tokenizer_path, use_fast=False)
     for file in hparams.files:
