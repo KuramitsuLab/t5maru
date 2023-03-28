@@ -300,9 +300,6 @@ class T5FineTuner(pl.LightningModule):
             self.model.save_pretrained(self.output_path)
         print_log(
             f'train epoch={self.current_epoch+1} loss={avg_loss:.5f} PPL={ppl:.5f}')
-        if not isatty():
-            debug_print(
-                f'Epoch {self.current_epoch+1} train_loss {avg_loss:.5f} PPL {ppl:.5f}')
 
     def validation_step(self, batch, batch_idx):
         """バリデーションステップ処理"""
@@ -318,9 +315,6 @@ class T5FineTuner(pl.LightningModule):
         self.log("val_ppl", ppl, prog_bar=False)
         print_log(
             f'val epoch={self.current_epoch+1} loss={avg_loss:.5f} PPL={ppl:.5f}')
-        if not isatty():
-            debug_print(
-                f'Epoch {self.current_epoch+1} val_loss {avg_loss:.5f} PPL {ppl:.5f}')
 
     def configure_optimizers(self):
         """オプティマイザーとスケジューラーを作成する"""
@@ -378,7 +372,7 @@ class T5FineTuner(pl.LightningModule):
             scale_parameter=False,
             relative_step=False,
             warmup_init=False,
-            lr=1e-3)
+            lr=self.learning_rate)
         debug_print('[optimizer]', optimizer)
         return optimizer
 
@@ -445,12 +439,14 @@ class T5ModelTrainer(object):
             accelerator=None, devices=1, precision=32,
             solver='adamw', training_steps=10000,
             learning_rate=3e-4, adam_epsilon=1e-8, weight_decay=0.0,
+            max_grad_norm=1.0,
             early_stopping=False, checkpoint_path=None,
             output_path='model', random_seed=42, streaming=False):
         set_seed(random_seed)  # 乱数を初期化
         if accelerator is None:
             accelerator = 'gpu' if USE_GPU else 'cpu'
-        data = T5DataModule(data_files, split=split, valid_split=valid_split,
+        data = T5DataModule(data_files,
+                            split=split, valid_split=valid_split,
                             transform=self.transform,
                             batch_size=self.step_batch_size,
                             num_of_workers=self.num_of_workers,
@@ -467,13 +463,14 @@ class T5ModelTrainer(object):
             tuner = pl.Trainer(
                 max_epochs=3,
                 enable_progress_bar=isatty(),
-                accelerator=accelerator, devices=devices,
+                accelerator=accelerator,
+                devices=devices,
                 precision=precision,
                 auto_scale_batch_size="power",
             )
             data.batch_size = self.batch_size // 4
             tuner.tune(model, data)
-            print_log('[auto_batch_size]', data.batch_size)
+            print_log('[gpu_batch_size]', data.batch_size)
             self.step_batch_size = data.batch_size
         accumulate_grad_batches = max(
             self.batch_size // self.step_batch_size, 1)
@@ -514,7 +511,7 @@ class T5ModelTrainer(object):
             precision=precision,
             max_epochs=max_epochs,
             max_time=max_time,
-            # gradient_clip_val=hparams.max_grad_norm,
+            gradient_clip_val=max_grad_norm,
             # k バッチ毎に勾配を蓄積する batch_size * k になる
             accumulate_grad_batches=accumulate_grad_batches,
             callbacks=callbacks,
@@ -611,7 +608,7 @@ def setup():
     parser.add_argument('--max_epochs', type=int, default=10)
     parser.add_argument('--max_hours', type=float, default=None)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--learning_rate', type=float, default=3e-4)
+    parser.add_argument('--learning_rate', type=float, default=None)
     parser.add_argument('--weight_decay', type=float, default=0.0)
     parser.add_argument('--adam_epsilon', type=float, default=1e-8)
     parser.add_argument('--warmup_steps', type=int, default=1)
@@ -664,6 +661,11 @@ def setup():
         hparams.source_max_length = hparams.max_length
     if hparams.target_max_length is None:
         hparams.target_max_length = hparams.max_length
+    if hparams.learning_rate is None:
+        if hparams.solver == 'adafactor':
+            hparams.learning_rate = 1e-4
+        else:
+            hparams.learning_rate = 3e-4
     set_logfile(hparams.output_path)
     print_log('[hparams]', hparams)
     return hparams
@@ -684,27 +686,36 @@ def main():
     if len(train_files) > 0:
         t_start = time.time()
         print_log('[train]', train_files)
-        model.fit(train_files,
-                  random_seed=hparams.seed,
-                  accelerator=hparams.accelerator,
-                  devices=hparams.devices,
-                  precision=hparams.precision,
-                  max_epochs=hparams.max_epochs,
-                  max_hours=hparams.max_hours,
-                  early_stopping=hparams.early_stopping,
-                  output_path=hparams.output_path,
-                  solver=hparams.solver)
-        t_time = (time.time() - t_start)
-        t_min = (t_time % 3600) / 60
-        print_log(
-            f'[trained] {t_time//3600}[H] {t_min}[M] {t_time:.3f}[sec]')
+        try:
+            model.fit(train_files,
+                      random_seed=hparams.seed,
+                      accelerator=hparams.accelerator,
+                      devices=hparams.devices,
+                      precision=hparams.precision,
+                      max_epochs=hparams.max_epochs,
+                      max_hours=hparams.max_hours,
+                      early_stopping=hparams.early_stopping,
+                      output_path=hparams.output_path,
+                      learning_rate=hparams.learning_rate,
+                      solver=hparams.solver)
+            t_time = (time.time() - t_start)
+            t_min = (t_time % 3600) / 60
+            print_log(
+                f'[trained] {t_time//3600}[H] {t_min}[M] {t_time:.3f}[sec]')
+        except Exception as e:
+            print_log(
+                f'[failed]', train_files, e)
     if len(test_files) > 0:
-        print_log('[test]', test_files)
-        for test_file in test_files:
-            results = model.predict(test_file)
-            if hparams.score and 'out' in results and 'pred' in results:
-                calc_score(hparams, results['out'], results['pred'],
-                           hparams.output_path, test_file)
+        try:
+            print_log('[test]', test_files)
+            for test_file in test_files:
+                results = model.predict(test_file)
+                if hparams.score and 'out' in results and 'pred' in results:
+                    calc_score(hparams, results['out'], results['pred'],
+                               hparams.output_path, test_file)
+        except Exception as e:
+            print_log(
+                f'[failed]', test_files, e)
 
 
 def calc_score(hparams, refs, preds, model_path, test_file):
