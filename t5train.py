@@ -1,7 +1,4 @@
-# import dill as pickle
-# import glob
 import time
-from transformers import default_data_collator
 import os
 import urllib.request
 import sys
@@ -15,7 +12,8 @@ from torch.optim import AdamW
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
-    get_linear_schedule_with_warmup
+    get_linear_schedule_with_warmup,
+    default_data_collator
 )
 from transformers.optimization import Adafactor, AdafactorSchedule
 
@@ -752,15 +750,6 @@ def main_test():
             calc_score(hparams, results['out'], results['pred'],
                        hparams.model_path, test_file)
 
-
-def main2():
-    model = T5ModelTrainer('kkuramitsu/mt5np_mini12L',
-                           step_batch_size=32,
-                           batch_size=256, num_of_workers=4)
-    model.fit('music_train.jsonl.gz',
-              max_epochs=1,
-              solver='adafactor')
-    print(model.predict('music_test.jsonl.gz'))
 
 
 if __name__ == '__main__':
