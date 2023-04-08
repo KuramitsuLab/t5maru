@@ -58,8 +58,8 @@ import gzip
 
 def zopen(file):
     if file.endswith('.gz'):
-        return gzip.open(file, 'tr')
-    return open(file)
+        return gzip.open(file, 'tr', encoding="utf-8", errors='ignore')
+    return open(file, encoding="utf-8", errors='ignore')
 
 def prepare_jsonl(jsonl_file, prompt='', source='in', target='out', lines=None, working_file='temp.jsonl', mode='w'):
     if jsonl_file.startswith('__'):
