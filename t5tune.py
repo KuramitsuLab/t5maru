@@ -13,44 +13,11 @@ import pytorch_lightning as pl
 from pytorch_lightning.tuner.tuning import Tuner
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
-from t5data import T5TrainFileModule, T5TestFileModule
-from commons import set_seed
+from .t5data import T5TrainFileModule, T5TestFileModule
+from .commons import set_seed, record, log_record, isatty
 
-from datetime import datetime
 import json
 
-LOG = {}
-
-def record(**kwargs):
-    global LOG
-    if len(LOG) == 0:
-        LOG = dict(date=datetime.now().isoformat(timespec='seconds'), elapsed=time.time())
-    LOG.update(kwargs)
-
-import time
-
-def elapsed(t1):
-    t2=time.time()
-    t_time = int(t2 - t1)
-    t_hour = t_time//3600
-    t_min = (t_time % 3600) // 60
-    t_sec = t_time % 60
-    return f'{t_hour:02d}:{t_min:02d}:{t_sec:02d}'
-
-def log_record(msg, output_file=None):
-    global LOG
-    LOG['elapsed'] = elapsed(LOG['elapsed'])
-    line=json.dumps(LOG, ensure_ascii=False)
-    line =f'{{"log": "{msg}", {line[1:]}'
-    try:
-        if output_file:
-            if os.path.isdir(output_file):
-                output_file = f'{output_file}/t5marulog.jsonl'
-            with open(output_file, 'a') as w:
-                print(line, file=w)
-    finally:
-        print(line)
-    LOG={}
 
 
 class T5FineTuner(pl.LightningModule):
