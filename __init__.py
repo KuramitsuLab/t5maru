@@ -1,1 +1,1 @@
-from .t5train import T5ModelTrainer
+from .t5tune import T5Model

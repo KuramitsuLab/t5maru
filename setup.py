@@ -14,7 +14,7 @@ def _requires_from_file(filename):
 
 
 setup(name="t5maru",
-      version="0.1.0",
+      version="0.2.1",
       license='MIT',
       author='Kimio Kuramitsu',
       description="Deep Learning",
@@ -27,7 +27,7 @@ setup(name="t5maru",
           "console_scripts": [
               "t5maru=t5maru.t5tune:main",
               "t5train=t5maru.t5tune:main_train",
-              "t5test=t5maru.t5train:main_test",
+              "t5test=t5maru.t5tune:main_test",
               "t5score=t5maru.t5score:main",
               "t5cp=t5maru.t5utils:main_cp",
               "t5new=t5maru.t5utils:main_new",

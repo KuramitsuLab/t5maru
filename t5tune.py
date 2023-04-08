@@ -14,7 +14,7 @@ from pytorch_lightning.tuner.tuning import Tuner
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from .t5data import T5TrainFileModule, T5TestFileModule
-from .commons import set_seed, record, log_record, isatty
+from .commons import set_seed, record, log_record, isatty, verbose_print
 
 import json
 
@@ -360,6 +360,7 @@ class T5Model:
                     #print(results[i], batch)
                     batch['pred']=results[i]
                     print(json.dumps(batch, ensure_ascii=False), file=w)
+            verbose_print(f'Tested {len(results)} items. See {output_file}')
         return results
 
 

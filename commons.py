@@ -66,13 +66,13 @@ def log_record(msg, output_file=None):
 DUP = set()
 
 
-def debug_print(*args, **kwargs):
+def verbose_print(*args, **kwargs):
     if len(DUP) < 512:
         sep = kwargs.get('sep', ' ')
         text = sep.join(str(a) for a in args)
         if text in DUP:
             return
-        print('😱', text)
+        print(kwargs.get('face', '😊'), text)
         DUP.add(text)
 
 
