@@ -11,4 +11,3 @@ pandas
 scikit-learn
 scipy
 nltk
-janome
