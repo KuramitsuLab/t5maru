@@ -9,15 +9,15 @@ from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
 from transformers import (
-    AutoTokenizer,
-    AutoModelForSeq2SeqLM,
-    get_linear_schedule_with_warmup,
+    # AutoTokenizer,
+    # AutoModelForSeq2SeqLM,
+    # get_linear_schedule_with_warmup,
     default_data_collator
 )
-from transformers.optimization import Adafactor, AdafactorSchedule
+#from transformers.optimization import Adafactor, AdafactorSchedule
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+#from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 #from .metrics import eval_score, write_score_csv
 
@@ -136,7 +136,7 @@ def create_valid_file(train_data, pretrain):
     if isinstance(train_data, str):
         with open(train_data) as f:
             lines = f.readlines()
-        valid_file = train_data.replace('_train.', '_valid')
+        valid_file = train_data.replace('_train.', '_valid.')
     else:
         lines = train_data
     if pretrain:
@@ -193,29 +193,32 @@ def generator(data):
 
 
 class T5TrainFileModule(pl.LightningDataModule):
-    def __init__(self, data_sources, prefix='temp', shuffle=True, downsizing=None,
-                transform=transform_nop, batch_size=32, num_of_workers=4, streaming=False):
+    def __init__(self, data_sources, use_valid=True, prefix='temp', shuffle=True, downsizing=None,
+                transform=transform_nop, batch_size=32, num_of_workers=4):
         super().__init__()
         self.train_file, self.train_size = prepare_train_file(data_sources, prefix=prefix, shuffle=shuffle, downsizing=downsizing)
-        self.valid_file = prepare_valid_file(data_sources, self.train_file, prefix=prefix, downsizing=downsizing)
+        if use_valid:
+            self.valid_file = prepare_valid_file(data_sources, self.train_file, prefix=prefix, downsizing=downsizing)
+        else:
+            self.valid_file = None
         self.ds_train = None
         self.ds_valid = None
         self.transform = transform
         self.batch_size = batch_size
         self.num_of_workers = num_of_workers
-        self.streaming = streaming
 
     def __enter__(self):
-        print("enter")
         return self
 
     def __exit__(self, ex_type, ex_value, trace):
         if self.ds_train:
-            print('cleaning up cache_files')
             self.ds_train.cleanup_cache_files()
         if self.ds_valid:
-            print('cleaning up cache_files')
             self.ds_valid.cleanup_cache_files()
+        if isinstance(self.train_file, str):
+            os.remove(self.train_file)
+        if isinstance(self.valid_file, str):
+            os.remove(self.valid_file)
         return False
 
 
@@ -229,14 +232,12 @@ class T5TrainFileModule(pl.LightningDataModule):
         return ds
 
     def setup(self, stage: str):
-        # Assign train/val datasets for use in dataloaders
         if stage == "fit":
             self.ds_train = self.load(self.train_file)
-            self.ds_valid = self.load(self.valid_file)
-        # Assign test dataset for use in dataloader(s)
-        # if stage == "test":
-        #     self.ds_test = self.load(
-        #         self.data_source, split=self.split, transform=self.transform)
+            if self.valid_file:
+                self.ds_valid = self.load(self.valid_file)
+        if stage == "test":
+            self.ds_train = self.load(self.train_file)
 
     def train_dataloader(self):
         return DataLoader(self.ds_train,
@@ -251,52 +252,19 @@ class T5TrainFileModule(pl.LightningDataModule):
                           num_workers=self.num_of_workers,
                           batch_size=self.batch_size)
 
-
-
-
-class T5TestFileModule(pl.LightningDataModule):
-    def __init__(self, test_file, prefix=None, transform=transform_nop, batch_size=32, num_of_workers=4):
-        super().__init__()
-        self.ds_test = None
-        self.test_file, _  = prepare_train_file(test_file, prefix=None, shuffle=False, downsizing=None)
-        self.transform = transform
-        self.batch_size = batch_size
-        self.num_of_workers = num_of_workers
-
-    def __enter__(self):
-        print("enter")
-        return self
-
-    def __exit__(self, ex_type, ex_value, trace):
-        print("exit: ", ex_type, ex_value, trace)
-        print("---")
-        if self.ds_test:
-            print('cleaning up cache_files')
-            self.ds_test.cleanup_cache_files()
-        return False
-
-    def load(self, data):
-        if isinstance(data, list):
-            ds = Dataset.from_generator(generator(data))
-        else:
-            ds = load_dataset('json', data_files=data, split='train')
-        ds = ds.map(
-            self.transform, num_proc=self.num_of_workers).with_format('torch')
-        return ds
-
-    def setup(self, stage: str):
-        # Assign test dataset for use in dataloader(s)
-        if stage == "test":
-            self.ds_test = self.load(self.test_file)
-
-
     def test_dataloader(self):
-        return DataLoader(self.ds_test,
+        return DataLoader(self.ds_train,
                           # collate_fn=default_data_collator,
                           num_workers=self.num_of_workers,
                           batch_size=self.batch_size)
 
 
+
+def T5TestFileModule(data_sources, 
+                      use_valid=True, prefix='temp', shuffle=True, downsizing=None,
+                      transform=transform_nop, batch_size=32, num_of_workers=4):
+    return T5TrainFileModule(data_sources, use_valid=False, prefix=None, shuffle=False, 
+                             downsizing=downsizing, transform=transform, batch_size=batch_size, num_of_workers=num_of_workers)
 
 
 
@@ -306,7 +274,7 @@ def main():
         for batch in dm.train_dataloader():
             print(batch)
     
-    with T5TestFileModule('sample/music_test.jsonl.gz') as dm:
+    with T5TestFileModule('sample/music_test.jsonl.gz', batch_size=1) as dm:
         dm.setup('test')
         for batch in dm.test_dataloader():
             print(batch)

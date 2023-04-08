@@ -1,8 +1,8 @@
-torch
+torch==2.0.0
 sentencepiece
-transformers==4.26.1
-datasets==2.10.0
-pytorch_lightning==1.9.3
+transformers==4.27.4
+datasets==2.11.0
+pytorch_lightning==2.0.1
 black 
 Levenshtein
 sumeval
