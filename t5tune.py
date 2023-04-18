@@ -77,7 +77,7 @@ class T5FineTuner(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """訓練ステップ処理"""
         loss = self._step(batch)
-        self.log("loss", loss)
+        self.log("loss", loss, dist_sync=True)
         return {"loss": loss}
 
     # def on_training_epoch_end(self, outputs):
@@ -95,7 +95,7 @@ class T5FineTuner(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         """バリデーションステップ処理"""
         loss = self._step(batch)
-        self.log("val_loss", loss, prog_bar=False)
+        self.log("val_loss", loss, dist_sync=True, prog_bar=False)
         return {"val_loss": loss}
 
     # def on_validation_epoch_end(self, outputs):
@@ -432,7 +432,7 @@ class T5Model:
             output_file = f"{self.model_path}/{file}"
         else:
             output_file = file
-        with open(output_file, "w") as w:
+        with open(output_file, "w", encoding="utf-8", errors="ignore") as w:
             with T5TestFileModule(test_file, batch_size=1) as dm:
                 dm.setup("test")
                 for i, batch in enumerate(dm.test_dataloader()):
