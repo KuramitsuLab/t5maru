@@ -198,7 +198,7 @@ class T5Model:
         assert self.tokenizer.pad_token_id == 0
         self.accelerator = get_accelerator(accelerator)
         self.precision = precision
-        self.strategy = "deepspeed_stage_3_offload"
+        self.strategy = "deepspeed"  # _stage_3_offload"
         self.devices = "auto"
         self.max_length = max_length
         self.target_max_length = target_max_length or max_length
