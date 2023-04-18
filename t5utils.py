@@ -8,21 +8,23 @@ import torch
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
-    MT5ForConditionalGeneration
+    MT5ForConditionalGeneration,
 )
 
 from .t5log import set_logfile, print_log
 
+
 def setup_cp():
-    parser = argparse.ArgumentParser(description='t5cp - duplicate model')
-    parser.add_argument('--model_path', default='kkuramitsu/t5jep')
-    parser.add_argument('--tokenizer_path', default=None)
-    parser.add_argument('--output_path', default='model')
+    parser = argparse.ArgumentParser(description="t5cp - duplicate model")
+    parser.add_argument("--model_path", default="kkuramitsu/t5jep")
+    parser.add_argument("--tokenizer_path", default=None)
+    parser.add_argument("--output_path", default="model")
     hparams = parser.parse_args()  # hparams になる
 
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
     return hparams
+
 
 def main_cp():
     hparams = setup_cp()
@@ -31,21 +33,22 @@ def main_cp():
     tokenizer.save_pretrained(hparams.output_path)
     model.save_pretrained(hparams.output_path)
     set_logfile(hparams.output_path)
-    print_log('[source]', hparams.model_path, hparams.tokenizer_path)
+    print_log("[source]", hparams.model_path, hparams.tokenizer_path)
+
 
 def setup_new():
-    parser = argparse.ArgumentParser(description='t5new - create a new vanilla model')
-    parser.add_argument('--model_path', default='kkuramitsu/t5jep')
-    parser.add_argument('--tokenizer_path', default=None)
-    parser.add_argument('--output_path', default='model')
-    parser.add_argument('--vocab_size', type=int, default=None)
-    parser.add_argument('--d_model', type=int, default=None)
-    parser.add_argument('--d_kv', type=int, default=None)
-    parser.add_argument('--d_ff', type=int, default=None)
-    parser.add_argument('--num_layers', type=int, default=None)
-    parser.add_argument('--num_decoder_layers', type=int, default=None)
-    parser.add_argument('--num_heads', type=int, default=None)
-    parser.add_argument('--dropout_rate', type=float, default=None)
+    parser = argparse.ArgumentParser(description="t5new - create a new vanilla model")
+    parser.add_argument("--model_path", default="kkuramitsu/t5jep")
+    parser.add_argument("--tokenizer_path", default=None)
+    parser.add_argument("--output_path", default="model")
+    parser.add_argument("--vocab_size", type=int, default=None)
+    parser.add_argument("--d_model", type=int, default=None)
+    parser.add_argument("--d_kv", type=int, default=None)
+    parser.add_argument("--d_ff", type=int, default=None)
+    parser.add_argument("--num_layers", type=int, default=None)
+    parser.add_argument("--num_decoder_layers", type=int, default=None)
+    parser.add_argument("--num_heads", type=int, default=None)
+    parser.add_argument("--dropout_rate", type=float, default=None)
 
     hparams = parser.parse_args()  # hparams になる
 
@@ -53,9 +56,11 @@ def setup_new():
         hparams.tokenizer_path = hparams.model_path
     return hparams
 
+
 # モデルのパラメータ数を数える
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters())
+
 
 def main_new():
     hparams = setup_new()
@@ -82,21 +87,22 @@ def main_new():
     tokenizer.save_pretrained(hparams.output_path)
     model.save_pretrained(hparams.output_path)
     set_logfile(hparams.output_path)
-    print_log('[model.config]', config)
-    print_log('[model.parameters]', count_parameters(model))
+    print_log("[model.config]", config)
+    print_log("[model.parameters]", count_parameters(model))
 
 
 ##
 ## t5len
 ##
 
+
 def setup_len():
-    parser = argparse.ArgumentParser(description='t5len - check tokenizer length')
-    parser.add_argument('files', type=str, nargs='+', help='jsonl files')
-    parser.add_argument('--model_path', default='kkuramitsu/t5jep')
-    parser.add_argument('--tokenizer_path', default=None)
-    parser.add_argument('--max_length', type=int, default=512)
-    parser.add_argument('--target_max_length', type=int, default=None)
+    parser = argparse.ArgumentParser(description="t5len - check tokenizer length")
+    parser.add_argument("files", type=str, nargs="+", help="jsonl files")
+    parser.add_argument("--model_path", default="kkuramitsu/t5jep")
+    parser.add_argument("--tokenizer_path", default=None)
+    parser.add_argument("--max_length", type=int, default=512)
+    parser.add_argument("--target_max_length", type=int, default=None)
     hparams = parser.parse_args()
     if hparams.tokenizer_path is None:
         hparams.tokenizer_path = hparams.model_path
@@ -107,26 +113,25 @@ def setup_len():
 
 def main_len():
     hparams = setup_len()
-    tokenizer = AutoTokenizer.from_pretrained(
-        hparams.tokenizer_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(hparams.tokenizer_path, use_fast=False)
     for file in hparams.files:
         in_lens = []
         out_lens = []
         with open(file) as f:
             for line in f.readlines():
                 d = json.loads(line)
-                ids = tokenizer.encode(d['in'])
+                ids = tokenizer.encode(d["in"])
                 in_lens.append(len(ids))
                 if len(ids) > hparams.max_length:
-                    print(len(ids), d['in'], '\n', ids)
-                ids = tokenizer.encode(d['out'])
+                    print(len(ids), d["in"], "\n", ids)
+                ids = tokenizer.encode(d["out"])
                 out_lens.append(len(ids))
                 if len(ids) > hparams.target_max_length:
-                    print(len(ids), d['out'], '\n', ids)
+                    print(len(ids), d["out"], "\n", ids)
         print(file)
-        df = pd.DataFrame({'in': in_lens, 'out': out_lens})
+        df = pd.DataFrame({"in": in_lens, "out": out_lens})
         print(df.describe())
 
 
-if __name__ == '__main__':  # わかります
+if __name__ == "__main__":  # わかります
     main_len()
