@@ -3,7 +3,6 @@ sentencepiece
 transformers==4.27.4
 datasets==2.11.0
 pytorch_lightning==2.0.1
-tensorbord
 deepspeed
 black 
 Levenshtein
