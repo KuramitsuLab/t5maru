@@ -187,6 +187,7 @@ class T5Model:
         target_max_length=None,
         accelerator=None,
         precision=32,
+        strategy="deepspeed",
         batch_size=32,
         num_of_workers=4,
     ):
@@ -198,7 +199,7 @@ class T5Model:
         assert self.tokenizer.pad_token_id == 0
         self.accelerator = get_accelerator(accelerator)
         self.precision = precision
-        self.strategy = "deepspeed"  # _stage_3_offload"
+        self.strategy = strategy
         self.devices = "auto"
         self.max_length = max_length
         self.target_max_length = target_max_length or max_length
@@ -458,6 +459,7 @@ def setup():
     parser.add_argument("--accelerator", type=str, default=None)
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--precision", default=None)
+    parser.add_argument("--strategy", default=None)
     parser.add_argument("--batch_size", default=16)
     parser.add_argument("--num_workers", default=4)
     ##
@@ -500,6 +502,8 @@ def main_train(hparams=None, files=None):
         batch_size=hparams.batch_size,
         max_length=hparams.max_length,
         target_max_length=hparams.target_max_length,
+        precision=hparams.precision,
+        strategy=hparams.strategy,
         num_of_workers=hparams.num_workers,
     )
     record(
