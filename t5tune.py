@@ -286,7 +286,6 @@ class T5Model:
 
     def scale_batch_size_dm(self, datamodule, mode="power"):
         model = T5FineTuner(self.model_path)
-        accelerator = get_accelerator(accelerator)
         trainer = pl.Trainer(
             max_epochs=10,
             log_every_n_steps=0,
