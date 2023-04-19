@@ -274,7 +274,7 @@ class T5Model:
             strategy=self.strategy,
             enable_progress_bar=False,
             enable_model_summary=False,
-            enable_check_pointing=False,
+            enable_checkpointing=False,
             logger=False,
             replace_sampler_ddp=False,
         )
@@ -388,7 +388,7 @@ class T5Model:
                 # https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
                 enable_progress_bar=False,
                 enable_model_summary=False,
-                enable_check_pointing=False,
+                enable_checkpointing=False,
                 logger=False,
                 replace_sampler_ddp=False,
             )
