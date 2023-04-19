@@ -302,6 +302,7 @@ class T5Model:
         )
         tuner = Tuner(trainer)
         try:
+            datamodule.batch_size = 2
             tuner.scale_batch_size(
                 model, datamodule=datamodule, steps_per_trial=2, init_val=2, mode=mode
             )
