@@ -348,6 +348,7 @@ class T5Model:
         ) as dm:
             if self.batch_size < 1:
                 self.batch_size = self.scale_batch_size_dm(dm)
+            print("@", self.batch_size, dm.batch_size)
             if batch_per_step is None:
                 if isinstance(gradient_accumulation_steps, int):
                     batch_per_step = self.batch_size * gradient_accumulation_steps
