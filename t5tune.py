@@ -298,7 +298,7 @@ class T5Model:
             enable_model_summary=False,
             enable_checkpointing=False,
             logger=False,
-            replace_sampler_ddp=False,
+            # replace_sampler_ddp=False,
         )
         tuner = Tuner(trainer)
         try:
