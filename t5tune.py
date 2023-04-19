@@ -356,6 +356,7 @@ class T5Model:
                     batch_per_step = max(self.batch_size, 1)
             else:
                 gradient_accumulation_steps = max(batch_per_step // self.batch_size, 1)
+            print("@", dm.train_size, max_epochs, batch_per_step)
             train_steps = dm.train_size * max_epochs // batch_per_step
             record(
                 batch_size=self.batch_size,
