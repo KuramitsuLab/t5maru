@@ -459,7 +459,7 @@ def setup():
     parser.add_argument("--accelerator", type=str, default=None)
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--precision", default=None)
-    parser.add_argument("--strategy", default=None)
+    parser.add_argument("--strategy", default="auto")
     parser.add_argument("--batch_size", default=16)
     parser.add_argument("--num_workers", default=4)
     ##
