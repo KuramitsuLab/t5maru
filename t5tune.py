@@ -494,8 +494,8 @@ def setup():
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--precision", default=None)
     parser.add_argument("--strategy", default="auto")
-    parser.add_argument("--batch_size", default=16)
-    parser.add_argument("--num_workers", default=4)
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--num_workers", type=int, default=min(4, os.cpu_count()))
     ##
     parser.add_argument("--output_path", default="local")
     parser.add_argument("--random_seed", type=int, default=42)
