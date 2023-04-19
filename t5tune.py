@@ -272,6 +272,11 @@ class T5Model:
             devices=self.devices,
             precision=self.precision,
             strategy=self.strategy,
+            enable_progress_bar=False,
+            enable_model_summary=False,
+            enable_check_pointing=False,
+            logger=False,
+            replace_sampler_ddp=False,
         )
         tuner = Tuner(trainer)
         try:
@@ -380,6 +385,12 @@ class T5Model:
                 # k バッチ毎に勾配を蓄積する batch_size * k になる
                 accumulate_grad_batches=gradient_accumulation_steps,
                 callbacks=callbacks,
+                # https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
+                enable_progress_bar=False,
+                enable_model_summary=False,
+                enable_check_pointing=False,
+                logger=False,
+                replace_sampler_ddp=False,
             )
             if max_epochs > 0:
                 trainer.fit(net, dm)
