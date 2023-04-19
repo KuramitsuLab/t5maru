@@ -389,8 +389,8 @@ class T5Model:
                 enable_progress_bar=False,
                 enable_model_summary=False,
                 enable_checkpointing=False,
-                logger=False,
-                replace_sampler_ddp=False,
+                # logger=False,
+                # replace_sampler_ddp=False,
             )
             if max_epochs > 0:
                 trainer.fit(net, dm)
