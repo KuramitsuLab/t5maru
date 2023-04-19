@@ -187,7 +187,7 @@ class T5Model:
         target_max_length=None,
         accelerator=None,
         precision=32,
-        strategy="deepspeed",
+        strategy="auto",
         batch_size=32,
         num_of_workers=4,
     ):
