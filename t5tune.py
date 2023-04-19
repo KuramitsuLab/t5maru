@@ -77,7 +77,7 @@ class T5FineTuner(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """訓練ステップ処理"""
         loss = self._step(batch)
-        self.log("loss", loss, dist_sync=True)
+        self.log("loss", loss, sync_dist=True, prog_bar=False)
         return {"loss": loss}
 
     # def on_training_epoch_end(self, outputs):
@@ -95,7 +95,7 @@ class T5FineTuner(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         """バリデーションステップ処理"""
         loss = self._step(batch)
-        self.log("val_loss", loss, dist_sync=True, prog_bar=False)
+        self.log("val_loss", loss, sync_dist=True, prog_bar=False)
         return {"val_loss": loss}
 
     # def on_validation_epoch_end(self, outputs):
