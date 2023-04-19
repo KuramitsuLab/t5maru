@@ -315,7 +315,7 @@ class T5Model:
         with T5TrainFileModule(
             data_file,
             transform=self.transform,
-            batch_size=batch_size or self.batch_size,
+            batch_size=batch_size or max(self.batch_size, 1),
         ) as dm:
             return self.scale_batch_size_dm(dm, mode=mode)
 
