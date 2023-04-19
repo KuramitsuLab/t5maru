@@ -169,7 +169,6 @@ class T5FineTuner(pl.LightningModule):
         optimizer = AdamW(
             self.grouped_parameters(), lr=self.learning_rate, eps=self.adam_epsilon
         )
-        DeepSpeedCPUAdam()
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
