@@ -13,6 +13,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.tuner.tuning import Tuner
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+from deepspeed.ops.adam import DeepSpeedCPUAdam
+
 from .t5data import T5TrainFileModule, T5TestFileModule
 from .commons import set_seed, record, log_record, isatty, verbose_print
 
@@ -109,8 +111,8 @@ class T5FineTuner(pl.LightningModule):
 
     def configure_optimizers(self):
         """オプティマイザーとスケジューラーを作成する"""
-        # if self.solver == 'adafactor':
-        #     return self.configure_ConstantAdafactor()
+        if self.solver == "deepspeed":
+            return self.configure_DeepSpeedAdam()
         return self.configure_AdamW()
 
     def grouped_parameters(self):
@@ -136,7 +138,28 @@ class T5FineTuner(pl.LightningModule):
         ]
         return optimizer_grouped_parameters
 
-    def configure_optimizers(self):
+    def configure_DeepSpeedAdam(self):
+        optimizer = DeepSpeedCPUAdam(
+            self.grouped_parameters(), lr=self.learning_rate, eps=self.adam_epsilon
+        )
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.warmup_steps,
+            num_training_steps=self.training_steps,
+        )
+        record(
+            solver=self.solver,
+            lr=self.learning_rate,
+            warmup_steps=self.warmup_steps,
+            training_steps=self.training_steps,
+            adam_epsilon=self.adam_epsilon,
+            weight_decay=self.weight_decay,
+        )
+        return [optimizer], [
+            {"scheduler": scheduler, "interval": "step", "frequency": 1}
+        ]
+
+    def configure_AdamW(self):
         # self.t_total = (
         #     (len(self.train_dataset) //
         #         (self.hparams.batch_size * max(1, self.hparams.n_gpus)))
@@ -146,6 +169,7 @@ class T5FineTuner(pl.LightningModule):
         optimizer = AdamW(
             self.grouped_parameters(), lr=self.learning_rate, eps=self.adam_epsilon
         )
+        DeepSpeedCPUAdam()
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
@@ -386,8 +410,8 @@ class T5Model:
                 accumulate_grad_batches=gradient_accumulation_steps,
                 callbacks=callbacks,
                 # https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
-                enable_progress_bar=False,
-                enable_model_summary=False,
+                # enable_progress_bar=False,
+                # enable_model_summary=False,
                 enable_checkpointing=False,
                 # logger=False,
                 # replace_sampler_ddp=False,
