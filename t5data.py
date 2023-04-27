@@ -38,23 +38,6 @@ import pandas as pd
 def transform_nop(x):
     return x
 
-
-# def url_is_alive(url: str):
-#     import urllib.request
-#     request = urllib.request.Request(url)
-#     request.get_method = lambda: 'HEAD'
-#     try:
-#         urllib.request.urlopen(request)
-#         return True
-#     except urllib.request.HTTPError:
-#         return False
-
-# def check_saved_path(filename):
-#     if '/' in filename:
-#         _, _, filename = filename.rpartition('/')
-#     saved = filename.replace('.gz', '').replace('.jsonl', '_saved')
-#     return saved, os.path.isdir(saved)
-
 # JSONLファイルの前処理
 
 import gzip
@@ -275,10 +258,10 @@ class T5TrainFileModule(pl.LightningDataModule):
             self.ds_train.cleanup_cache_files()
         if self.ds_valid:
             self.ds_valid.cleanup_cache_files()
-        if isinstance(self.train_file, str):
-            os.remove(self.train_file)
-        if isinstance(self.valid_file, str):
-            os.remove(self.valid_file)
+        # if isinstance(self.train_file, str):
+        #     os.remove(self.train_file)
+        # if isinstance(self.valid_file, str):
+        #     os.remove(self.valid_file)
         return False
 
     def load(self, data):
@@ -326,8 +309,8 @@ class T5TrainFileModule(pl.LightningDataModule):
 
 def T5TestFileModule(
     data_sources,
-    use_valid=True,
-    prefix="temp",
+    use_valid=False,
+    prefix=None,
     shuffle=True,
     downsizing=None,
     transform=transform_nop,
