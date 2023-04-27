@@ -451,7 +451,6 @@ class T5Model:
                     for ids in outputs.sequences
                 ]
                 results.extend(preds)
-            print(results)
             return results
 
     def test(self, test_file):
@@ -475,11 +474,17 @@ class T5Model:
                 dm.setup("test")
                 for i, batch in enumerate(dm.test_dataloader()):
                     # print(results[i], batch)
+                    unlist_dict(batch)
                     batch["pred"] = results[i]
                     print(json.dumps(batch, ensure_ascii=False), file=w)
             verbose_print(f"Tested {len(results)} items. See {output_file}")
         return results
 
+def unlist_dict(d):
+    for key, value in d.items():
+        if isinstance(value, list):
+            value = value[0]
+        d[key] = value
 
 def setup():
     import argparse
