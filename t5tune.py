@@ -178,7 +178,7 @@ class T5FineTuner(pl.LightningModule):
             solver=self.solver,
             lr=self.learning_rate,
             warmup_steps=self.warmup_steps,
-            training_steps=self.training_steps,
+            training_steps=max(self.training_steps, 100000),
             adam_epsilon=self.adam_epsilon,
             weight_decay=self.weight_decay,
         )
@@ -511,7 +511,7 @@ def setup():
     parser.add_argument("--solver", type=str, default="adamw")
     parser.add_argument("--max_epochs", type=int, default=10)
     parser.add_argument("--max_time", type=str, default=None)
-    parser.add_argument("--early_stopping", action="store_true", default=False)
+    parser.add_argument("--early_stopping", action="store_true", default=True)
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
