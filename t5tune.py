@@ -172,7 +172,7 @@ class T5FineTuner(pl.LightningModule):
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
-            num_training_steps=self.training_steps,
+            num_training_steps=max(self.training_steps,100000),
         )
         record(
             solver=self.solver,
@@ -349,7 +349,6 @@ class T5Model:
         ) as dm:
             if self.batch_size < 1:
                 self.batch_size = self.scale_batch_size_dm(dm)
-            print("@", self.batch_size, dm.batch_size)
             if batch_per_step is None:
                 if isinstance(gradient_accumulation_steps, int):
                     batch_per_step = self.batch_size * gradient_accumulation_steps
@@ -358,7 +357,6 @@ class T5Model:
                     batch_per_step = max(self.batch_size, 1)
             else:
                 gradient_accumulation_steps = max(batch_per_step // self.batch_size, 1)
-            print("@", dm.train_size, max_epochs, batch_per_step)
             train_steps = dm.train_size * max_epochs // batch_per_step
             record(
                 batch_size=self.batch_size,
@@ -403,7 +401,7 @@ class T5Model:
                 accelerator=self.accelerator,
                 devices=self.devices,
                 precision=self.precision,
-                strategy=self.strategy,
+#                strategy=self.strategy,
                 max_epochs=max_epochs,
                 max_time=max_time,
                 gradient_clip_val=max_grad_norm,
@@ -411,11 +409,18 @@ class T5Model:
                 accumulate_grad_batches=gradient_accumulation_steps,
                 callbacks=callbacks,
                 # https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
-                # enable_progress_bar=False,
+                enable_progress_bar=False,
                 # enable_model_summary=False,
                 enable_checkpointing=False,
                 # logger=False,
                 # replace_sampler_ddp=False,
+            )
+            record(
+                accelerator=self.accelerator,
+                devices=self.devices,
+                precision=self.precision,
+                strategy=self.strategy,
+                gradient_clip_val=max_grad_norm,
             )
             if max_epochs > 0:
                 trainer.fit(net, dm)
