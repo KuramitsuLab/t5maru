@@ -423,6 +423,8 @@ class T5Model:
                 gradient_clip_val=max_grad_norm,
             )
             if max_epochs > 0:
+                record(compile=True)
+                net.model=torch.compile(net.model)
                 trainer.fit(net, dm)
                 record(epoch=trainer.current_epoch, step=trainer.global_step)
             # 最終エポックのモデルを保存 output_path に保存します
