@@ -451,6 +451,7 @@ class T5Model:
                     for ids in outputs.sequences
                 ]
                 results.extend(preds)
+            print(results)
             return results
 
     def test(self, test_file):
