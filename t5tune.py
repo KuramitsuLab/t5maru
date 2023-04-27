@@ -401,7 +401,7 @@ class T5Model:
                 accelerator=self.accelerator,
                 devices=self.devices,
                 precision=self.precision,
-#                strategy=self.strategy,
+                strategy=self.strategy,
                 max_epochs=max_epochs,
                 max_time=max_time,
                 gradient_clip_val=max_grad_norm,
