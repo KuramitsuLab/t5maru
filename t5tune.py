@@ -404,7 +404,7 @@ class T5Model:
                 strategy=self.strategy,
                 max_epochs=max_epochs,
                 max_time=max_time,
-                gradient_clip_val=max_grad_norm,
+#                gradient_clip_val=max_grad_norm,
                 # k バッチ毎に勾配を蓄積する batch_size * k になる
                 accumulate_grad_batches=gradient_accumulation_steps,
                 callbacks=callbacks,
