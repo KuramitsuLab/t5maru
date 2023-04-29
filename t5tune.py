@@ -451,7 +451,8 @@ class T5Model:
                               transform=self.transform_input_only) as dm:
             dm.setup("test")
             results = []
-            for batch in dm.test_dataloader():
+            for i, batch in enumerate(dm.test_dataloader()):
+                print(i, batch)
                 outputs = model.generate(
                     input_ids=batch["source_ids"].to(device),  # .cuda()
                     attention_mask=batch["source_mask"].to(device),  # .cuda()
@@ -490,8 +491,8 @@ class T5Model:
             with T5TestFileModule(test_file, batch_size=1) as dm:
                 dm.setup("test")
                 for i, batch in enumerate(dm.test_dataloader()):
-                    # print(results[i], batch)
                     unlist_dict(batch)
+                    print(results[i], batch)
                     batch["pred"] = results[i]
                     print(json.dumps(batch, ensure_ascii=False), file=w)
             verbose_print(f"Tested {len(results)} items. See {output_file}")
