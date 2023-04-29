@@ -20,6 +20,14 @@ from .commons import set_seed, record, log_record, isatty, verbose_print
 
 import json
 
+T5MARU_EXT = os.environ.get('T5MARU_EXT','')
+
+def config_ext(key, default=''):
+    ss = T5MARU_EXT.split(' ')
+    for s in ss:
+        if key in s:
+            return s
+    return default
 
 class T5FineTuner(pl.LightningModule):
     def __init__(
@@ -404,7 +412,7 @@ class T5Model:
                 strategy=self.strategy,
                 max_epochs=max_epochs,
                 max_time=max_time,
-#                gradient_clip_val=max_grad_norm,
+                gradient_clip_val=max_grad_norm,
                 # k バッチ毎に勾配を蓄積する batch_size * k になる
                 accumulate_grad_batches=gradient_accumulation_steps,
                 callbacks=callbacks,
@@ -438,7 +446,9 @@ class T5Model:
         record(record=str(device))
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
         model.to(device)
-        with T5TestFileModule(test_file, transform=self.transform_input_only) as dm:
+        with T5TestFileModule(test_file, 
+                                batch_size=max(1, self.batch_size),
+                              transform=self.transform_input_only) as dm:
             dm.setup("test")
             results = []
             for batch in dm.test_dataloader():

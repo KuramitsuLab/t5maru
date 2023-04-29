@@ -258,10 +258,10 @@ class T5TrainFileModule(pl.LightningDataModule):
             self.ds_train.cleanup_cache_files()
         if self.ds_valid:
             self.ds_valid.cleanup_cache_files()
-        # if isinstance(self.train_file, str):
-        #     os.remove(self.train_file)
-        # if isinstance(self.valid_file, str):
-        #     os.remove(self.valid_file)
+        if isinstance(self.train_file, str):
+            os.remove(self.train_file)
+        if isinstance(self.valid_file, str):
+            os.remove(self.valid_file)
         return False
 
     def load(self, data):
@@ -302,6 +302,7 @@ class T5TrainFileModule(pl.LightningDataModule):
         return DataLoader(
             self.ds_train,
             # collate_fn=default_data_collator,
+            shuffle=False,
             num_workers=self.num_of_workers,
             batch_size=self.batch_size,
         )
@@ -311,10 +312,10 @@ def T5TestFileModule(
     data_sources,
     use_valid=False,
     prefix=None,
-    shuffle=True,
+    shuffle=False,
     downsizing=None,
     transform=transform_nop,
-    batch_size=32,
+    batch_size=16,
     num_of_workers=4,
 ):
     return T5TrainFileModule(
