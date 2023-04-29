@@ -443,7 +443,8 @@ class T5Model:
 
     def predict(self, test_file):
         device = torch.device(get_device())
-        record(record=str(device))
+        verbose_print(f'testing {test_file} on {device}')
+#        record(record=str(device))
         model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
         model.to(device)
         with T5TestFileModule(test_file, 
@@ -452,7 +453,7 @@ class T5Model:
             dm.setup("test")
             results = []
             for i, batch in enumerate(dm.test_dataloader()):
-                print(i, batch)
+                # print(i, batch)
                 outputs = model.generate(
                     input_ids=batch["source_ids"].to(device),  # .cuda()
                     attention_mask=batch["source_mask"].to(device),  # .cuda()
@@ -468,7 +469,7 @@ class T5Model:
                     )
                     for ids in outputs.sequences
                 ]
-                results.extend(preds)
+                results.extend(batch_to_dicts(batch, preds))
             return results
 
     def test(self, test_file):
@@ -488,15 +489,22 @@ class T5Model:
         else:
             output_file = file
         with open(output_file, "w", encoding="utf-8", errors="ignore") as w:
-            with T5TestFileModule(test_file, batch_size=1) as dm:
-                dm.setup("test")
-                for i, batch in enumerate(dm.test_dataloader()):
-                    unlist_dict(batch)
-                    print(results[i], batch)
-                    batch["pred"] = results[i]
-                    print(json.dumps(batch, ensure_ascii=False), file=w)
+            for result in results:
+                print(json.dumps(result, ensure_ascii=False), file=w)
             verbose_print(f"Tested {len(results)} items. See {output_file}")
         return results
+
+def batch_to_dicts(batch, preds):
+    del batch["source_ids"]
+    del batch["source_mask"]
+    batch["pred"] = preds
+    dicts=[]
+    for idx in range(len(preds)):
+        d={}
+        for key in batch.keys():
+            d[key] = batch[key][idx]
+        dicts.append(d)
+    return dicts
 
 def unlist_dict(d):
     for key, value in d.items():
